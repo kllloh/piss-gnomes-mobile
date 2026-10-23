@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Forest } from './forest';
 import type { Gnome } from './gnomes';
+import { surfaceAt } from './map';
 
 const MAX = 3400;
 export const SPEED = 16; // metres per second out of the gnome
@@ -81,6 +82,7 @@ export class PeeSystem {
   private pX = new Float32Array(PUDDLES);
   private pZ = new Float32Array(PUDDLES);
   private pSize = new Float32Array(PUDDLES);
+  private pY = new Float32Array(PUDDLES);
   private pNext = 0;
 
   constructor(scene: THREE.Scene) {
@@ -151,7 +153,7 @@ export class PeeSystem {
       const x = ox + vx * t;
       const y = oy + vy * t - 0.5 * this.gravity * t * t;
       const z = oz + vz * t;
-      if (y < 0.04 || forest.pointHit(x, y, z)) { out.x = x; out.z = z; return true; }
+      if (y < surfaceAt(x, z) + 0.04 || forest.pointHit(x, y, z)) { out.x = x; out.z = z; return true; }
     }
     return false;
   }
@@ -179,6 +181,7 @@ export class PeeSystem {
     this.pX[i] = x;
     this.pZ[i] = z;
     this.pSize[i] = 0.8 + Math.random() * 0.9;
+    this.pY[i] = surfaceAt(x, z) + 0.04;
   }
 
   update(dt: number, forest: Forest, targets: Gnome[], onHit: (victim: Gnome, shooter: Gnome, mask: number, x: number, z: number) => void) {
@@ -200,7 +203,7 @@ export class PeeSystem {
       const x = (this.px[i] += this.vx[i] * dt);
       const y = (this.py[i] += this.vy[i] * dt);
       const z = (this.pz[i] += this.vz[i] * dt);
-      if (y < 0.04) {
+      if (y < surfaceAt(x, z) + 0.04) {
         if (Math.random() < 0.12) this.splash(x, z);
         this.remove(i);
         continue;
@@ -243,7 +246,7 @@ export class PeeSystem {
       this.pAge[i] += dt;
       const a = this.pAge[i];
       const s = this.pSize[i] * Math.min(1, a * 5) * (a > 3 ? Math.max(0, 1 - (a - 3) / 2) : 1);
-      dummy.position.set(this.pX[i], 0.03, this.pZ[i]);
+      dummy.position.set(this.pX[i], this.pY[i], this.pZ[i]);
       dummy.scale.set(Math.max(s, 0.0001), 1, Math.max(s, 0.0001));
       dummy.updateMatrix();
       this.puddles.setMatrixAt(i, dummy.matrix);

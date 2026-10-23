@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HALF, type Forest } from './forest';
+import { heightAt } from './map';
 import { MAX_HP, type Gnome } from './gnomes';
 
 export type BonusKind = 'speed' | 'health' | 'bounce' | 'gulp';
@@ -262,7 +263,7 @@ export class Bugs {
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 9, 8, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide, fog: false }));
     beam.position.y = 4.5;
     group.add(gem, ring, beam);
-    group.position.set(x, 0, z);
+    group.position.set(x, heightAt(x, z), z);
     this.scene.add(group);
     this.bonuses.push({ x, z, kind, life: BONUS_LIFE, group, gem, mat });
   }
@@ -282,7 +283,7 @@ export class Bugs {
           b.farted = true;
           const tx = b.pos.x + Math.sin(b.yaw) * -0.8;
           const tz = b.pos.z + Math.cos(b.yaw) * -0.8;
-          for (let i = 0; i < 9; i++) this.puff(tx, 0.7, tz);
+          for (let i = 0; i < 9; i++) this.puff(tx, heightAt(tx, tz) + 0.7, tz);
           if (active) {
             const spot = { x: b.pos.x - Math.sin(b.yaw) * 1.4, z: b.pos.z - Math.cos(b.yaw) * 1.4 };
             this.forest.collide(spot, 0.6);
@@ -333,6 +334,7 @@ export class Bugs {
       }
       if (speed > 0) b.walk += dt * 12;
       b.root.position.z = b.pos.z;
+      b.root.position.y = heightAt(b.pos.x, b.pos.z);
       b.root.rotation.y = b.yaw + Math.PI;
       b.legL.rotation.y = speed > 0 ? Math.sin(b.walk) * 0.35 : 0;
       b.legR.rotation.y = speed > 0 ? -Math.sin(b.walk) * 0.35 : 0;

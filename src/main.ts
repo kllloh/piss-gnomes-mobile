@@ -6,15 +6,16 @@ import { Banter, modTagline } from './talk';
 import { Nathaniel } from './nathaniel';
 import { Bugs, BONUS_INFO, type BonusKind } from './bugs';
 import { detectQuality } from './quality';
+import { heightAt, surfaceAt, poiAt, renderTerrainImage, POIS, SEA } from './map';
 import { Trip } from './trip';
 import { PeeSystem, RANGE, PEE, MIX, KIND_BIT } from './pee';
 import { Input } from './input';
 import { Sfx } from './audio';
 
 const TOTAL = 50; // gnomes in a match
-const MIST_WAIT = 45; // seconds before the mist starts to close
-const MIST_TIME = 300; // seconds it takes to close
-const MIST_START = HALF * 1.5;
+const MIST_WAIT = 40; // seconds before the mist starts to close
+const MIST_TIME = 280; // seconds it takes to close
+const MIST_START = 86; // the island is about 72 across from its middle
 const MIST_END = 8;
 const COUNTDOWN = 3.4;
 const WIZARD_TIME = 20;
@@ -140,13 +141,13 @@ function banner(text: string, small = '', ms = 1800) {
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 const mapCtx = $<HTMLCanvasElement>('minimap').getContext('2d')!;
+const terrainImg = renderTerrainImage(260, HALF);
 function drawMinimap() {
   const S = 124;
   const k = S / (2 * HALF + 6);
   const px = (x: number) => (x + HALF + 3) * k;
   mapCtx.clearRect(0, 0, S, S);
-  mapCtx.fillStyle = 'rgba(130,225,100,.95)';
-  mapCtx.fillRect(0, 0, S, S);
+  mapCtx.drawImage(terrainImg, 0, 0, S, S);
   mapCtx.strokeStyle = 'rgba(255,255,255,.9)';
   mapCtx.strokeRect(px(-HALF), px(-HALF), 2 * HALF * k, 2 * HALF * k);
   // safe circle
@@ -324,6 +325,112 @@ function pause(on: boolean) {
   if (on) { sfx.hiss(false); sfx.hissOthers([]); }
 }
 
+// --- the big map (tap the minimap or press M) and the place names -----------------------------------------------------
+
+let mapOpen = false;
+function drawBigMap() {
+  const cv = $<HTMLCanvasElement>('bigmapCanvas');
+  const S = Math.floor(Math.min(window.innerHeight * 0.86, window.innerWidth * 0.94));
+  cv.width = cv.height = S;
+  cv.style.width = cv.style.height = `${S}px`;
+  const ctx = cv.getContext('2d')!;
+  const k = S / (2 * HALF + 6);
+  const px = (v: number) => (v + HALF + 3) * k;
+  ctx.drawImage(terrainImg, 0, 0, S, S);
+  // the safe circle
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, S, S);
+  ctx.arc(px(0), px(0), arena.ringR * k, 0, Math.PI * 2, true);
+  ctx.fillStyle = 'rgba(255,90,165,.4)';
+  ctx.fill('evenodd');
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(px(0), px(0), arena.ringR * k, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ff3a8a';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  // the names
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const fs = Math.max(11, Math.round(S / 38));
+  ctx.font = `bold ${fs}px "Arial Rounded MT Bold", "Trebuchet MS", sans-serif`;
+  for (const p of POIS) {
+    const x = px(p.x);
+    const y = px(p.z);
+    ctx.beginPath();
+    ctx.arc(x, y, fs * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fff';
+    ctx.stroke();
+    ctx.lineWidth = fs * 0.28;
+    ctx.strokeStyle = '#fff';
+    ctx.lineJoin = 'round';
+    ctx.strokeText(p.name, x, y - fs * 1.15);
+    ctx.fillStyle = p.color;
+    ctx.fillText(p.name, x, y - fs * 1.15);
+  }
+  // Nathaniel, and you
+  ctx.save();
+  ctx.translate(px(nathaniel.pos.x), px(nathaniel.pos.z));
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = '#ffe066';
+  ctx.strokeStyle = '#4a2a78';
+  ctx.lineWidth = 2;
+  ctx.fillRect(-fs * 0.4, -fs * 0.4, fs * 0.8, fs * 0.8);
+  ctx.strokeRect(-fs * 0.4, -fs * 0.4, fs * 0.8, fs * 0.8);
+  ctx.restore();
+  if (player.alive) {
+    ctx.save();
+    ctx.translate(px(player.pos.x), px(player.pos.z));
+    ctx.rotate(-player.yaw + Math.PI);
+    ctx.beginPath();
+    ctx.moveTo(0, -fs * 0.9);
+    ctx.lineTo(fs * 0.6, fs * 0.6);
+    ctx.lineTo(0, fs * 0.25);
+    ctx.lineTo(-fs * 0.6, fs * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#4a2a78';
+    ctx.lineWidth = 3;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function openMap(on: boolean) {
+  if (on && state !== 'play' && state !== 'countdown') return;
+  mapOpen = on;
+  paused = on;
+  $('bigmap').classList.toggle('on', on);
+  input.release();
+  if (on) drawBigMap();
+}
+$('minimap').addEventListener('click', () => openMap(true));
+$('bigmap').addEventListener('click', () => openMap(false));
+window.addEventListener('keydown', (e) => { if (e.code === 'KeyM') openMap(!mapOpen); if (e.code === 'Escape' && mapOpen) openMap(false); });
+
+let lastPoi = '';
+let locTimer = 0;
+function updateLocation() {
+  const poi = player.alive ? poiAt(player.pos.x, player.pos.z) : null;
+  const name = poi ? poi.name : '';
+  if (name !== lastPoi) {
+    lastPoi = name;
+    if (poi) {
+      const el = $('loc');
+      el.textContent = '\u{1F4CD} ' + poi.name.toUpperCase();
+      el.style.borderColor = poi.color;
+      el.classList.add('show');
+      clearTimeout(locTimer);
+      locTimer = window.setTimeout(() => el.classList.remove('show'), 3200);
+    }
+  }
+}
+
 // --- the how-to-play slider on the start screen ------------------------------------------------------------
 
 (() => {
@@ -390,7 +497,7 @@ $('btnSound').addEventListener('click', () => {
   banter.setVoices(!sfx.muted);
   $('btnSound').innerHTML = sfx.muted ? '&#128263;' : '&#128266;';
 });
-window.addEventListener('keydown', (e) => { if (e.code === 'Escape') pause(!paused); if (e.code === 'Enter' && state === 'menu') $('btnPlay').click(); });
+window.addEventListener('keydown', (e) => { if (e.code === 'Escape' && !mapOpen) pause(!paused); if (e.code === 'Enter' && state === 'menu') $('btnPlay').click(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(true); });
 // no pinch-zoom, double-tap zoom or long-press menus while playing
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault());
@@ -621,6 +728,7 @@ function updateHud() {
     $('mistfx').style.opacity = out && player.alive ? '1' : '0';
   }
   drawMinimap();
+  updateLocation();
 }
 
 function frame(nowMs: number, lastMs: number) {
@@ -778,7 +886,7 @@ function frame(nowMs: number, lastMs: number) {
   if (state === 'menu') {
     // a slow drift through the trees behind the menu
     const a = t * 0.08;
-    camera.position.set(Math.cos(a) * 16, 2.4, Math.sin(a) * 16);
+    camera.position.set(Math.cos(a) * 16, Math.max(heightAt(Math.cos(a) * 16, Math.sin(a) * 16), SEA) + 2.4, Math.sin(a) * 16);
     camera.rotation.set(-0.08, -a - Math.PI / 2 + 0.6, 0);
   } else {
     const bob = Math.sin(focus.walkPhase) * 0.05 * Math.min(1, Math.hypot(focus.vel.x, focus.vel.z) / 3);
@@ -803,14 +911,14 @@ function frame(nowMs: number, lastMs: number) {
     const fz = Math.cos(player.yaw) * cp;
     const ok = pee.landing(player.pos.x + Math.sin(player.yaw) * 0.5, 0.75 + player.pos.y, player.pos.z + Math.cos(player.yaw) * 0.5, fx, Math.sin(player.pitch), fz, forest, landing);
     landMark.visible = ok;
-    landMark.position.set(landing.x, 0.08, landing.z);
+    landMark.position.set(landing.x, surfaceAt(landing.x, landing.z) + 0.08, landing.z);
     landMark.rotation.z = t * 1.5;
     (landMark.material as THREE.MeshBasicMaterial).opacity = player.peeing ? 0.9 : 0.5;
   } else landMark.visible = false;
 
   mistWall.scale.set(arena.ringR, 1, arena.ringR);
   mistLine.scale.set(arena.ringR, 1, arena.ringR);
-  forest.update(dt, t, 1e5, 1e5); // the leaves only shrank away from the top-down camera
+  forest.update(dt, t);
 
   // the silly modes: lights, colours, and tints on the gnomes
   const target = curMod && state === 'play' ? 1 : 0;

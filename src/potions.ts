@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HALF, type Forest } from './forest';
+import { heightAt } from './map';
 import { PEE, POTION_KINDS, KIND_BIT, type PeeKind } from './pee';
 import type { Gnome } from './gnomes';
 
@@ -16,6 +17,7 @@ interface Item {
   alive: boolean;
   wait: number;
   group: THREE.Group;
+  gy: number;
   bottle: THREE.Mesh;
   beam: THREE.Mesh;
 }
@@ -60,9 +62,10 @@ export class Potions {
       const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: PEE[kind].color, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, fog: false }));
       beam.position.y = 7;
       group.add(bottle, beam);
-      group.position.set(p.x, 0, p.z);
+      const gy = heightAt(p.x, p.z);
+      group.position.set(p.x, gy, p.z);
       scene.add(group);
-      this.items.push({ x: p.x, z: p.z, kind, alive: true, wait: 0, group, bottle, beam });
+      this.items.push({ x: p.x, z: p.z, kind, alive: true, wait: 0, group, gy, bottle, beam });
     }
   }
 
@@ -96,7 +99,7 @@ export class Potions {
         continue;
       }
       it.bottle.rotation.y = t * 1.6;
-      it.group.position.y = Math.sin(t * 2 + it.x) * 0.12;
+      it.group.position.y = it.gy + Math.sin(t * 2 + it.x) * 0.12;
       for (const g of gnomes) {
         if (!g.alive || g.potions[it.kind as 'chili'] > 0) continue; // a kind you already hold is left for a mix
         const dx = g.pos.x - it.x;

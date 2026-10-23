@@ -68,3 +68,9 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Six modes:** the three new ones are **Upside Down** (the whole picture flips 180 degrees, and left/right and up/down on your controls swap
   so they still feel right on screen), **Moon** (low gravity: jumps are about 7 units high and streams fly about three times as far, under a star sky with the Earth
   hanging in it) and **Slippery** (everyone skids as if on ice, under a frosty aurora sky). Each has its own sky, lighting, colour grade, music and banter.
+- **A Fortnite-style island:** the map is now an island with hills, lakes, a river and the sea around it, and twelve named places:
+  Pee-nacle Peak (a pavilion on the summit), Soggy Bottom (a lake with a hut island), Stonehedge, Tinkle Town (a village round a fountain),
+  Gnome Depot (a warehouse and crates), Chili Fields (a barn and crops), Puddle Pond, Dribble Falls, Sunbathing Shores (beach umbrellas),
+  Ice Wee Glacier, Acid Swamp (green pools) and Wee Woods (a thick mushroom forest). Names float over each place and pop up when you
+  arrive; tap the minimap (or press M) for the big map. Wading slows you and refills your bladder, and the deep sea is off limits.
+  Heights are one function in `src/map.ts`, used by the terrain mesh, the colliders, droplets, bots and the minimap.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SoftBox, lit } from './organic';
 import { HALF, type Forest } from './forest';
+import { heightAt, waterDepth } from './map';
 
 /** The back-of-a-van metal band on his T-shirt. */
 function shirtTexture(): THREE.CanvasTexture {
@@ -220,7 +221,10 @@ export class Nathaniel {
       this.yaw += angleDiff(this.yaw, Math.atan2(dx, dz)) * Math.min(1, dt * 3);
       this.pos.x += (dx / d) * speed * dt;
       this.pos.z += (dz / d) * speed * dt;
+      const px = this.pos.x - (dx / d) * speed * dt;
+      const pz = this.pos.z - (dz / d) * speed * dt;
       forest.collide(this.pos, 0.6);
+      if (waterDepth(this.pos.x, this.pos.z) > 1.4) { this.pos.x = px; this.pos.z = pz; this.goalT = 0; } // he does not swim
     }
     if (target) {
       // he only speaks when you say hi: that is, when you walk up close to him
@@ -246,9 +250,10 @@ export class Nathaniel {
     // when blessing, one arm goes up
     if (this.pause > 0) this.armR.rotation.x = -2.6 + Math.sin(t * 8) * 0.2;
     this.head.rotation.z = Math.sin(this.walk * 0.5) * 0.06;
-    this.root.position.set(this.pos.x, Math.abs(Math.sin(this.walk)) * 0.12, this.pos.z);
+    const gy = heightAt(this.pos.x, this.pos.z);
+    this.root.position.set(this.pos.x, gy + Math.abs(Math.sin(this.walk)) * 0.12, this.pos.z);
     this.root.rotation.y = this.yaw + Math.PI;
-    this.marker.position.set(this.pos.x, 9.2 + Math.sin(t * 3) * 0.2, this.pos.z);
+    this.marker.position.set(this.pos.x, gy + 9.2 + Math.sin(t * 3) * 0.2, this.pos.z);
     return out;
   }
 

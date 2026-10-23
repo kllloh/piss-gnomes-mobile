@@ -61,8 +61,10 @@
   #mist { position: absolute; top: calc(8px + var(--st)); left: 50%; transform: translateX(-50%); padding: 5px 14px; font-size: clamp(11px, 2.4vmin, 16px); letter-spacing: 1px; white-space: nowrap; border-color: var(--pink); }
   #mist.hot { animation: blink .45s infinite alternate; background: #ffe0ee; }
   @keyframes blink { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.07); } }
-  #minimap { position: absolute; top: calc(8px + var(--st)); right: calc(10px + var(--sr)); width: clamp(84px, 17vmin, 124px); height: clamp(84px, 17vmin, 124px); border-radius: 50%; border: 5px solid #fff; box-shadow: 0 0 0 3px var(--pink), 0 5px 0 var(--shadow); background: #8ae070; }
-  #feed { position: absolute; top: calc(52px + var(--st)); left: calc(10px + var(--sl)); font-size: clamp(11px, 2.3vmin, 15px); line-height: 1.5; max-width: 46vw; color: #fff; text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); }
+  #minimap { pointer-events: auto; cursor: pointer; position: absolute; top: calc(8px + var(--st)); right: calc(10px + var(--sr)); width: clamp(84px, 17vmin, 124px); height: clamp(84px, 17vmin, 124px); border-radius: 50%; border: 5px solid #fff; box-shadow: 0 0 0 3px var(--pink), 0 5px 0 var(--shadow); background: #8ae070; }
+  #loc { position: absolute; top: calc(52px + var(--st)); left: calc(10px + var(--sl)); padding: 4px 14px; font-size: clamp(12px, 2.8vmin, 18px); letter-spacing: 1px; background: #fff; border: 4px solid var(--pink); border-radius: 16px; box-shadow: 0 4px 0 var(--shadow); opacity: 0; transform: translateX(-20px); transition: opacity .35s, transform .35s; white-space: nowrap; }
+  #loc.show { opacity: 1; transform: none; }
+  #feed { position: absolute; top: calc(94px + var(--st)); left: calc(10px + var(--sl)); font-size: clamp(11px, 2.3vmin, 15px); line-height: 1.5; max-width: 46vw; color: #fff; text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); }
   #feed div { transition: opacity .6s; }
   #bars { position: absolute; bottom: calc(10px + var(--sb)); left: 50%; transform: translateX(-50%); width: min(300px, 46vw); padding: 6px 12px 4px; border-color: var(--yellow); }
   .bar { height: 14px; background: #e6d8f6; border-radius: 8px; overflow: hidden; margin: 3px 0; position: relative; }
@@ -75,6 +77,10 @@
   #banner small { display: block; font-size: .36em; margin-top: 8px; letter-spacing: 1px; color: #fff; -webkit-text-stroke: .3em var(--ink); paint-order: stroke fill; text-shadow: none; }
   #buttons { position: absolute; top: calc(clamp(84px, 17vmin, 124px) + 16px + var(--st)); right: calc(10px + var(--sr)); display: flex; gap: 8px; pointer-events: auto; }
   #buttons button { width: 46px; height: 46px; padding: 0; font-size: 17px; background: #fff; border: 4px solid var(--cyan); border-radius: 50%; box-shadow: 0 4px 0 var(--shadow); }
+  #bigmap { position: fixed; inset: 0; z-index: 25; display: none; align-items: center; justify-content: center; background: rgba(60,20,90,.55); flex-direction: column; }
+  #bigmap.on { display: flex; }
+  #bigmap canvas { border-radius: 22px; border: 6px solid #fff; box-shadow: 0 0 0 4px var(--pink), 0 10px 0 var(--shadow); }
+  #bigmap p { margin: 8px 0 0; color: #fff; font-size: clamp(11px, 2.4vmin, 15px); text-shadow: 0 2px 0 var(--ink); }
   #bubbles { position: fixed; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
   .bubble { position: absolute; left: 0; top: 0; max-width: 210px; padding: 6px 12px; font-size: 13px; line-height: 1.25; text-align: center; color: var(--ink); background: #fff; border: 3px solid #fff; border-radius: 16px; box-shadow: 0 0 0 3px var(--ink), 0 5px 0 var(--shadow); transform-origin: 50% 100%; will-change: transform, opacity; transition: opacity .2s; }
   .bubble.big { font-size: 24px; padding: 6px 18px; background: #fff3a0; letter-spacing: 1px; }
@@ -137,7 +143,8 @@
     #jumpBtn { width: clamp(70px, 19vw, 104px); height: clamp(70px, 19vw, 104px); }
     #mist { top: calc(50px + var(--st)); left: calc(10px + var(--sl)); transform: none; }
     #modchip { top: calc(90px + var(--st)); left: calc(10px + var(--sl)); transform: none; }
-    #feed { top: calc(130px + var(--st)); max-width: 62vw; }
+    #loc { top: calc(130px + var(--st)); }
+    #feed { top: calc(172px + var(--st)); max-width: 62vw; }
     @keyframes blink { from { transform: scale(1); } to { transform: scale(1.07); } }
   }
   /* a short landscape screen (a phone on its side): the title on the left, the how-to slider on the right */
@@ -172,6 +179,7 @@
   <div id="alive" class="glass">GNOMES LEFT <b id="aliveN">50</b>/50</div>
   <div id="mist" class="glass">MIST IN 0:20</div>
   <canvas id="minimap" width="124" height="124"></canvas>
+  <div id="loc"></div>
   <div id="feed"></div>
   <div id="bars" class="glass">
     <div class="bar"><i id="hpfill"></i></div>
@@ -186,6 +194,7 @@
   <div id="buffs"></div>
   <div id="buttons"><button id="btnSound" aria-label="Sound">&#128266;</button><button id="btnPause" aria-label="Pause">&#10074;&#10074;</button></div>
 </div>
+<div id="bigmap"><canvas id="bigmapCanvas"></canvas><p>tap anywhere to close the map</p></div>
 <div id="hurt"></div>
 <div id="wizfx"></div>
 <div id="mistfx"></div>
@@ -232,7 +241,11 @@
             <ul><li>The tall metalhead in glasses (a <b>gold diamond</b> on the map). <b>Say hi:</b> walk up close to him and he gives you <b>Wizard Mode</b>: 20 seconds where nothing can hurt you.</li></ul></div>
         </section>
         <section class="slide">
-          <div class="card"><h3>6 &middot; MODES AND TIPS</h3>
+          <div class="card"><h3>6 &middot; THE ISLAND</h3>
+            <ul><li>Hills, a river, lakes and the sea. Wading slows you down and <b>refills your bladder</b>; the deep sea is too deep to enter.</li><li>Twelve named places: <b>Pee-nacle Peak, Soggy Bottom, Stonehedge, Tinkle Town, Gnome Depot, Chili Fields, Puddle Pond, Dribble Falls, Sunbathing Shores, Ice Wee Glacier, Acid Swamp</b> and <b>Wee Woods</b>.</li><li>Tap the <b>minimap</b> (or press <b>M</b>) for the big map with all the names.</li></ul></div>
+        </section>
+        <section class="slide">
+          <div class="card"><h3>7 &middot; MODES AND TIPS</h3>
             <ul><li>Random modes change the rules: <b>Disco</b> (faster, stronger streams), <b>Goth</b> (dark, no healing), <b>Bogan</b> (big bladder, drunk aim), <b>Upside Down</b> (the world flips, and so do your controls), <b>Moon</b> (low gravity: huge jumps and streams that fly three times as far) and <b>Slippery</b> (you skid about like on ice).</li><li>Colourful dots on the minimap are bonuses. White is you.</li><li>The world only goes psychedelic when you are badly hurt.</li><li>Wear headphones: every sound comes from where it happens.</li></ul></div>
         </section>
       </div>

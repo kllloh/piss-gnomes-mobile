@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createGnome } from './gnome';
 import { lit } from './organic';
 import { HALF, type Forest } from './forest';
+import { heightAt, waterDepth, DEEP, SEA } from './map';
 import { RANGE, SPEED as DROP_SPEED, GRAVITY, MIX, KIND_BIT, type PeeSystem } from './pee';
 import type { Potions } from './potions';
 import type { Bugs } from './bugs';
@@ -171,6 +172,9 @@ export class Gnome {
   bounceT = 0;
   freeT = 0;
   private vy = 0;
+  /** Height of the ground under the feet, and how deep the water is there. */
+  ground = 0;
+  wading = 0;
   burn = 0;
   acid = 0;
   chill = 0;
@@ -378,7 +382,7 @@ export class Gnome {
 
   /** A hop. Only from the ground, and not while frozen. */
   jump(v = 8) {
-    if (this.alive && this.pos.y <= 0.02 && this.frozen <= 0) this.vy = v;
+    if (this.alive && this.pos.y <= this.ground + 0.05 && this.frozen <= 0 && this.wading < 1.2) this.vy = v;
   }
 
   // --- the bot brain -------------------------------------------------------------------------------
@@ -396,10 +400,15 @@ export class Gnome {
     this.target = best;
   }
 
-  private blocked(A: Arena, tx: number, tz: number): boolean {
-    for (let k = 1; k <= 5; k++) {
-      const t = k / 6;
-      if (A.forest.pointHit(this.pos.x + (tx - this.pos.x) * t, 0.7, this.pos.z + (tz - this.pos.z) * t)) return true;
+  private blocked(A: Arena, tx: number, tz: number, ty: number): boolean {
+    const y0 = this.pos.y + 0.75;
+    const y1 = ty + 0.9;
+    for (let k = 1; k <= 6; k++) {
+      const t = k / 7;
+      const x = this.pos.x + (tx - this.pos.x) * t;
+      const z = this.pos.z + (tz - this.pos.z) * t;
+      const y = y0 + (y1 - y0) * t;
+      if (y < heightAt(x, z) + 0.2 || A.forest.pointHit(x, y, z)) return true;
     }
     return false;
   }
@@ -451,7 +460,7 @@ export class Gnome {
       this.aimZ = Math.cos(ang);
       this.botPitch = aimPitch(Math.max(d, 1), 0.9 - 0.75 + tgt.pos.y - this.pos.y, A.pee.gravity);
       this.hasAim = true;
-      const clear = !this.blocked(A, tgt.pos.x, tgt.pos.z);
+      const clear = !this.blocked(A, tgt.pos.x, tgt.pos.z, tgt.pos.y);
       this.wantPee = d < RANGE * 0.97 && !scared && clear && !this.locked && this.bladder > 2 && Math.abs(angleDiff(this.yaw, ang)) < 0.35;
       // shout a taunt as the stream starts
       if (this.wantPee && !this.wasPee && Math.random() < 0.4) Gnome.onSay?.(this, 'taunt');
@@ -536,10 +545,14 @@ export class Gnome {
     this.speedT = Math.max(0, this.speedT - dt);
     this.freeT = Math.max(0, this.freeT - dt);
     // bouncing: hop whenever you land, for as long as it lasts
-    if (this.bounceT > 0) { this.bounceT -= dt; if (this.pos.y <= 0.001 && this.frozen <= 0) this.vy = A.mod === 'moon' ? 10.5 : 8; }
+    this.ground = heightAt(this.pos.x, this.pos.z);
+    this.wading = waterDepth(this.pos.x, this.pos.z);
+    if (this.bounceT > 0) { this.bounceT -= dt; if (this.pos.y <= this.ground + 0.05 && this.frozen <= 0 && this.wading < 1.2) this.vy = A.mod === 'moon' ? 10.5 : 8; }
     this.vy -= 24 * (A.mod === 'moon' ? 0.32 : 1) * dt;
     this.pos.y += this.vy * dt;
-    if (this.pos.y < 0) { this.pos.y = 0; this.vy = 0; }
+    if (this.pos.y <= this.ground) { this.pos.y = this.ground; this.vy = 0; }
+    // standing in water: it puts fires out and refills the bladder
+    if (this.wading > 0.25) { this.burn = 0; this.bladder = Math.min(100, this.bladder + 26 * dt); if (this.locked && this.bladder >= BLADDER_UNLOCK) this.locked = false; }
     if (this.burn > 0) { this.burn -= dt; this.dot(8 * dt, this.burnBy, A.time); if (this.wet > 0.2) this.burn = Math.min(this.burn, 0.4); }
     if (this.acid > 0) { this.acid -= dt; this.dot(5 * this.acidMul * dt, this.acidBy, A.time); }
     if (this.frozen > 0) { this.frozen -= dt; if (this.frozen <= 0) { this.immune = 3; this.chill = 0; } }
@@ -559,15 +572,27 @@ export class Gnome {
     const frozen = A.frozen || this.frozen > 0;
     const mlen = Math.hypot(this.moveX, this.moveZ);
     const scale = mlen > 1 ? 1 / mlen : 1;
-    const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : 1) * (this.speedT > 0 ? 1.55 : 1);
+    const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : 1) * (this.speedT > 0 ? 1.55 : 1) * (this.wading > 1.2 ? 0.45 : this.wading > 0.25 ? 0.65 : 1);
     const tx = frozen ? 0 : this.moveX * scale * speed;
     const tz = frozen ? 0 : this.moveZ * scale * speed;
     const k = 1 - Math.exp(-(A.mod === 'slippery' ? 2.2 : 14) * dt);
     this.vel.x += (tx - this.vel.x) * k;
     this.vel.z += (tz - this.vel.z) * k;
+    const prevX = this.pos.x;
+    const prevZ = this.pos.z;
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
     A.forest.collide(this.pos, BODY_R);
+    // the sea is too deep to walk into
+    if (waterDepth(this.pos.x, this.pos.z) > DEEP) {
+      if (waterDepth(this.pos.x, prevZ) <= DEEP) this.pos.z = prevZ;
+      else if (waterDepth(prevX, this.pos.z) <= DEEP) this.pos.x = prevX;
+      else { this.pos.x = prevX; this.pos.z = prevZ; }
+      this.vel.x *= 0.3;
+      this.vel.z *= 0.3;
+    }
+    const gNow = heightAt(this.pos.x, this.pos.z);
+    if (this.pos.y < gNow) { this.pos.y = gNow; this.vy = 0; }
     for (const o of A.gnomes) {
       if (o === this || !o.alive) continue;
       const dx = this.pos.x - o.pos.x;
@@ -657,8 +682,7 @@ export class Gnome {
     else if (this.acid > 0) this.mat.emissive.setRGB(0.1, 0.55, 0.05);
     else if (this.chill > 0.1) this.mat.emissive.setRGB(0.1 * this.chill, 0.35 * this.chill, 0.55 * this.chill);
     else this.mat.emissive.setRGB(this.wet * 1.4, this.wet * 1.1, 0);
-    this.shadow.position.x = this.pos.x;
-    this.shadow.position.z = this.pos.z;
+    this.shadow.position.set(this.pos.x, Math.max(this.ground, SEA) + 0.05, this.pos.z);
     this.marker.position.set(this.pos.x, this.pos.y + 4.5 + Math.sin(this.walkPhase * 0.5 + this.id) * 0.1, this.pos.z);
     this.bar.position.set(this.pos.x, this.pos.y + 3.9, this.pos.z);
     const f = Math.max(0, this.hp / MAX_HP);
