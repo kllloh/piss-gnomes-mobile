@@ -91,3 +91,5 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   skyline and a neon grid, glass panels with cyan/magenta/yellow corner brackets, chamfered yellow and cyan buttons, a cyan joystick with a dashed magenta inner ring and a
   glowing knob, octagonal PEE and JUMP buttons, a reticle crosshair, segmented health and bladder bars, a minimap with a radar sweep, terminal-style
   speech bubbles and kill feed (`> ...`), a glitching banner, a faint scan-line sheet, and tactical-grid maps with neon labels and a targeting reticle for your spawn.
+- **Auto-pee:** your gnome starts peeing by itself when an enemy is within range, roughly in front of you and not hidden behind a hill or a mushroom, and the stream drifts onto the target while it does.
+  The **AUTO** button beside the sound button switches it off (it then says MAN) and the choice is remembered.

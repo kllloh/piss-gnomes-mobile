@@ -192,6 +192,9 @@
     .howto h2 { font-size: 13px; margin-bottom: 4px; }
   }
   @media (max-height: 420px) { .overlay h1 { margin-bottom: 0; } .rules { margin: 6px 0 8px; } .big { padding: 9px 30px; } }
+
+  #btnAuto { font-family: var(--head); font-size: 10px; letter-spacing: .08em; color: var(--m); text-shadow: 0 0 6px #ff2bd6; background: var(--brk-m), rgba(20,6,22,.9); border-color: rgba(255,43,214,.5); }
+  #btnAuto.off { color: var(--dim); text-shadow: none; opacity: .6; background: rgba(8,6,20,.9); border-color: rgba(127,144,184,.4); }
 </style>
 </head>
 <body class="inmenu">
@@ -225,7 +228,7 @@
   <div id="modchip"></div>
   <div id="wizard"></div>
   <div id="buffs"></div>
-  <div id="buttons"><button id="btnSound" aria-label="Sound">&#128266;</button><button id="btnPause" aria-label="Pause">&#10074;&#10074;</button></div>
+  <div id="buttons"><button id="btnAuto" aria-label="Auto pee">AUTO</button><button id="btnSound" aria-label="Sound">&#128266;</button><button id="btnPause" aria-label="Pause">&#10074;&#10074;</button></div>
 </div>
 <div id="bigmap"><canvas id="bigmapCanvas"></canvas><p>tap anywhere to close the map</p></div>
 <div id="hurt"></div>
@@ -250,7 +253,7 @@
         </section>
         <section class="slide">
           <div class="card"><h3>2 &middot; PHONE OR TABLET</h3>
-            <ul><li><b>Left side:</b> drag to <b>walk</b>. The blue button is <b>JUMP</b>.</li><li><b>Right side:</b> drag anywhere to <b>look</b>.</li><li>Hold the yellow <b>PEE</b> button to pee. Slide your thumb on it to aim while you pee.</li></ul></div>
+            <ul><li><b>Left side:</b> drag to <b>walk</b>. The blue button is <b>JUMP</b>.</li><li><b>Right side:</b> drag anywhere to <b>look</b>.</li><li>Hold <b>PEE</b> to pee (slide your thumb on it to aim). It also <b>fires by itself</b> when an enemy is in range and near your crosshair: the <b>AUTO</b> button next to the sound button turns that off.</li></ul></div>
           <div class="card"><h3>COMPUTER</h3>
             <ul><li><b>WASD</b> walk, <b>mouse</b> look (click the game to capture it), hold <b>click</b> or <b>F</b> to pee, <b>Space</b> jumps, <b>Esc</b> pauses.</li></ul></div>
         </section>

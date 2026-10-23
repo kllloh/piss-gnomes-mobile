@@ -383,6 +383,11 @@ export class Gnome {
     Gnome.onDeath?.(this, killer && killer !== this ? killer : null);
   }
 
+  /** True during the few seconds of grace after spawning (so auto-pee does not waste a bladder on it). */
+  get landShieldActive(): boolean {
+    return this.landShield > 0;
+  }
+
   /** A hop. Only from the ground, and not while frozen. */
   jump(v = 8) {
     if (this.alive && this.pos.y <= this.ground + 0.05 && this.frozen <= 0 && this.wading < 1.2) this.vy = v;

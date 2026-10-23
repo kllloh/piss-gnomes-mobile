@@ -736,6 +736,36 @@ landMark.renderOrder = 9;
 landMark.visible = false;
 scene.add(landMark);
 
+/** Is there a clear line from the player to this gnome? (hills and mushroom stems block it) */
+function clearShot(g: Gnome): boolean {
+  const y0 = player.pos.y + 0.75;
+  const y1 = g.pos.y + 0.9;
+  for (let k = 1; k <= 6; k++) {
+    const t = k / 7;
+    const x = player.pos.x + (g.pos.x - player.pos.x) * t;
+    const z = player.pos.z + (g.pos.z - player.pos.z) * t;
+    const y = y0 + (y1 - y0) * t;
+    if (y < heightAt(x, z) + 0.2 || forest.pointHit(x, y, z)) return false;
+  }
+  return true;
+}
+
+/** Auto-pee: on by default, and remembered. */
+let autoPee = true;
+try { autoPee = localStorage.getItem('pg-auto') !== '0'; } catch { /* private window */ }
+function showAuto() {
+  const b = $('btnAuto');
+  b.classList.toggle('off', !autoPee);
+  b.textContent = autoPee ? 'AUTO' : 'MAN';
+}
+$('btnAuto').addEventListener('click', () => {
+  autoPee = !autoPee;
+  try { localStorage.setItem('pg-auto', autoPee ? '1' : '0'); } catch { /* fine */ }
+  showAuto();
+  banner(autoPee ? 'AUTO PEE ON' : 'AUTO PEE OFF', autoPee ? 'you pee by yourself when an enemy is in range' : 'hold PEE yourself', 1400);
+});
+showAuto();
+
 function playerControls(dt: number) {
   input.poll();
   const [ly, lp] = input.takeLook();
@@ -757,28 +787,31 @@ function playerControls(dt: number) {
   player.wantPee = input.fire;
   if (input.takeJump() && state === 'play') player.jump(arena.mod === 'moon' ? 10.5 : 8);
 
-  // a thumb is not a mouse: when peeing, drift the stream towards anyone nearly under the crosshair
+  // the nearest enemy that is in range, near the crosshair and not behind a hill or a mushroom
   player.assistYaw = player.assistPitch = null;
-  if (input.touch && input.fire) {
-    let best: Gnome | null = null;
-    let bd = 0.3;
-    let byaw = 0;
+  let best: Gnome | null = null;
+  let bd = 0.32;
+  let byaw = 0;
+  if (state === 'play') {
     for (const g of bots) {
-      if (!g.alive) continue;
+      if (!g.alive || g.landShieldActive) continue;
       const dx = g.pos.x - player.pos.x;
       const dz = g.pos.z - player.pos.z;
       const d = Math.hypot(dx, dz);
-      if (d > RANGE + 2 || d < 1) continue;
+      if (d > RANGE * 0.92 || d < 1) continue;
       let diff = Math.atan2(dx, dz) - player.yaw;
       while (diff > Math.PI) diff -= 2 * Math.PI;
       while (diff < -Math.PI) diff += 2 * Math.PI;
-      if (Math.abs(diff) < bd) { bd = Math.abs(diff); best = g; byaw = diff; }
+      if (Math.abs(diff) < bd && clearShot(g)) { bd = Math.abs(diff); best = g; byaw = diff; }
     }
-    if (best) {
-      const d = Math.hypot(best.pos.x - player.pos.x, best.pos.z - player.pos.z);
-      player.assistYaw = player.yaw + byaw * 0.7;
-      player.assistPitch = player.pitch + (aimPitch(d, 0.15) - player.pitch) * 0.5;
-    }
+  }
+  // AUTO: start peeing by itself when there is somebody to pee on
+  if (best && autoPee && player.bladder > 1) player.wantPee = true;
+  // a thumb is not a mouse (and auto is a helper): drift the stream towards the target while it is peeing
+  if (best && player.wantPee && (input.touch || autoPee)) {
+    const d = Math.hypot(best.pos.x - player.pos.x, best.pos.z - player.pos.z);
+    player.assistYaw = player.yaw + byaw * 0.7;
+    player.assistPitch = player.pitch + (aimPitch(d, 0.15 + best.pos.y - player.pos.y, pee.gravity) - player.pitch) * 0.5;
   }
   if (arena.mod === 'bogan' && modAmt > 0.3) {
     // the tinnies are working: the stream wanders
