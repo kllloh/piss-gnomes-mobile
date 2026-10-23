@@ -74,13 +74,16 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   Ice Wee Glacier, Acid Swamp (green pools) and Wee Woods (a thick mushroom forest). Names float over each place and pop up when you
   arrive; tap the minimap (or press M) for the big map. Wading slows you and refills your bladder, and the deep sea is off limits.
   Heights are one function in `src/map.ts`, used by the terrain mesh, the colliders, droplets, bots and the minimap.
-- **The drop plane:** every match starts with all 50 gnomes aboard a pink propeller plane that flies one line across the island
-  (the dotted line on the map). The button says **DROP**: tap it to jump out over somewhere you like, steer while you fall, and the
-  glider umbrella opens near the ground (tap **GLIDE** to open it earlier). Bots pick a named place and jump when the plane gets close
-  enough. Nobody can pee in the air, and you are safe for 3 seconds after landing. Anybody still aboard is pushed out at the end of the line.
-  The mist and the random modes start only once the plane has gone.
+- **Choose your spawn:** tap PLAY and you get the island map: tap a named place (or anywhere on land) and DEPLOY. You appear there with a
+  3-second grace period; the other 49 gnomes are spread around the island's spawn points (never on top of you). There is no plane any more.
+- **A bigger island (1.5x):** about 2.25 times the area (270 x 270), roughly 800 big mushrooms, 60 potions and 30 beetles. The mist starts after
+  50 s and takes 5.5 minutes to close.
 - **Tenchu: Stealth Assassins look:** the game is now a moonlit, foggy, 1998-console world. It renders at about 360 lines and is scaled up with hard
   pixels, vertex positions snap to a coarse grid so edges shimmer, colour is quantised to 15-bit with an ordered dither, and textures are nearest-filtered.
   The island is dark moss, mud and grey rock under a night sky with a pale moon; mushrooms have dull earthy caps; the buildings are
   weathered wood with black roofs, and warm stone lanterns glow around the places. The interface is ink, parchment and blood red (rice-paper speech bubbles,
   a red-sun title screen with the character for shinobi, serif type). The lens flare and outline are off in this look.
+- **A fifth psychedelic, a tenth cyberpunk:** the swirling sky, drifting spores and gentle colour warp are always on at 20% (low health turns them up),
+  and the post pass adds a 10% cyberpunk grade: teal shadows, magenta highlights, a little glow, scanlines on the low-res pixel rows and a hint of chromatic
+  split. Some lanterns glow cyan or magenta, the place names are neon signs, and the depot, the fountain, the Peak pavilion and the standing stones have neon strips.
+  It all happens in the low-res picture, so the pixel look stays.

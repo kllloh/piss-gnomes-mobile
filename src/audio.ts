@@ -314,38 +314,6 @@ export class Sfx {
   pop() { this.tone(520, 160, 0.12, 'triangle', 0.16); }
 
   // --- sounds placed in the forest ---
-  private plane: { gain: GainNode; panner: PannerNode } | null = null;
-
-  /** The drop plane's engine, placed where the plane is (null = silent). */
-  planeAt(p: Pos | null) {
-    if (!this.ctx) return;
-    if (!this.plane) {
-      const c = this.ctx;
-      const panner = this.makePanner(0, 100, 0);
-      panner.refDistance = 40;
-      panner.rolloffFactor = 0.9;
-      panner.maxDistance = 400;
-      const gain = c.createGain();
-      gain.gain.value = 0;
-      const lp = c.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.value = 520;
-      for (const f of [58, 87, 116]) {
-        const o = c.createOscillator();
-        o.type = 'sawtooth';
-        o.frequency.value = f;
-        const g = c.createGain();
-        g.gain.value = f === 58 ? 0.5 : 0.25;
-        o.connect(g).connect(lp);
-        o.start();
-      }
-      lp.connect(gain).connect(panner);
-      this.plane = { gain, panner };
-    }
-    if (p) this.place(this.plane.panner, p.x, p.y, p.z);
-    this.plane.gain.gain.setTargetAtTime(p ? 0.5 : 0, this.ctx.currentTime, 0.2);
-  }
-
   /** Somebody else got splashed. */
   hurtAt(p: Pos, id: number) {
     if (!this.ready('hurt' + id, 0.18)) return;

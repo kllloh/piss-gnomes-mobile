@@ -13,7 +13,7 @@ export const BONUS_INFO: Record<BonusKind, { name: string; blurb: string; color:
 };
 const KINDS: BonusKind[] = ['speed', 'health', 'bounce', 'gulp'];
 
-const BUG_COUNT = 18;
+const BUG_COUNT = 30;
 const BONUS_LIFE = 16;
 const GRAB = 1.5;
 const PUFFS = 36;
@@ -364,7 +364,7 @@ export class Bugs {
       let taken = false;
       if (active) {
         for (const g of gnomes) {
-          if (!g.alive || g.flight !== 'ground') continue;
+          if (!g.alive) continue;
           const dx = g.pos.x - bo.x;
           const dz = g.pos.z - bo.z;
           if (dx * dx + dz * dz < GRAB * GRAB) {

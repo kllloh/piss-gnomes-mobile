@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { SoftBox, lit, makePaintTexture } from './organic';
-import { heightAt, SEA, landNear, groundColor, POIS, ACID_POOLS } from './map';
+import { heightAt, SEA, landNear, groundColor, POIS, ACID_POOLS, K } from './map';
 
 /** Half the side of the (small, square) forest. */
-export const HALF = 90;
+export const HALF = 135;
 
 interface Solid {
   /** circle: x,z,r. rect: x0,z0,x1,z1 */
@@ -58,6 +58,7 @@ function put(m: THREE.InstancedMesh, i: number, x: number, y: number, z: number,
 
 /** A floating name sign: a white pill with a coloured border, readable from far away. */
 function makeSign(text: string, color: string): THREE.Sprite {
+  // a dark panel with a neon tube border and glowing letters
   const c = document.createElement('canvas');
   c.width = 512;
   c.height = 128;
@@ -70,15 +71,19 @@ function makeSign(text: string, color: string): THREE.Sprite {
   ctx.arcTo(8, 120, 8, 8, r);
   ctx.arcTo(8, 8, 504, 8, r);
   ctx.closePath();
-  ctx.fillStyle = '#d8ccae';
+  ctx.fillStyle = '#100a16';
   ctx.fill();
-  ctx.lineWidth = 12;
+  ctx.lineWidth = 10;
   ctx.strokeStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 16;
   ctx.stroke();
   let size = 58;
   ctx.font = `bold ${size}px "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif`;
   while (ctx.measureText(text).width > 440 && size > 24) { size -= 2; ctx.font = `bold ${size}px "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif`; }
-  ctx.fillStyle = '#1a1214';
+  ctx.fillStyle = '#f4f0ff';
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 256, 68);
@@ -110,7 +115,7 @@ export class Forest {
     this.grid = Array.from({ length: this.nx * this.nx }, () => []);
 
     // fifty spawn points on three rings, each moved onto dry land and kept apart
-    for (const [r, count, off] of [[24, 10, 0.31], [42, 16, 0.1], [60, 24, 0.2]] as const) {
+    for (const [r, count, off] of [[24 * K, 10, 0.31], [42 * K, 16, 0.1], [60 * K, 24, 0.2]] as const) {
       for (let k = 0; k < count; k++) {
         const a = (k / count) * Math.PI * 2 + off;
         let sp = landNear(Math.cos(a) * r, Math.sin(a) * r, 0.9);
@@ -124,12 +129,12 @@ export class Forest {
     const keepClear: { x: number; z: number; r: number }[] = [
       ...this.spawns.map((s) => ({ x: s.x, z: s.z, r: 4 })),
       { x: 0, z: 0, r: 15 }, // Stonehedge
-      { x: 42, z: 22, r: 17 }, // Tinkle Town
-      { x: -40, z: 10, r: 15 }, // Gnome Depot
-      { x: 6, z: 50, r: 17 }, // Chili Fields
-      { x: 36, z: -44, r: 7 }, // the summit
-      { x: -42, z: -40, r: 6 }, // the island in Soggy Bottom
-      { x: 52, z: -22, r: 6 }, // the waterfall
+      { x: 42 * K, z: 22 * K, r: 17 }, // Tinkle Town
+      { x: -40 * K, z: 10 * K, r: 15 }, // Gnome Depot
+      { x: 6 * K, z: 50 * K, r: 17 }, // Chili Fields
+      { x: 36 * K, z: -44 * K, r: 7 }, // the summit
+      { x: -42 * K, z: -40 * K, r: 6 }, // the island in Soggy Bottom
+      { x: 52 * K, z: -26 * K, r: 6 }, // the waterfall
     ];
     const clear = (x: number, z: number, pad = 0) => keepClear.every((k) => Math.hypot(x - k.x, z - k.z) > k.r + pad);
     const gentle = (x: number, z: number) => Math.abs(heightAt(x + 1.5, z) - heightAt(x - 1.5, z)) < 1.6 && Math.abs(heightAt(x, z + 1.5) - heightAt(x, z - 1.5)) < 1.6;
@@ -137,7 +142,7 @@ export class Forest {
 
     // --- the island: a hilly, coloured terrain mesh, with the sea round it ----------------------------------
     const SIZE = 2 * (HALF + 14);
-    const SEG = 104;
+    const SEG = Math.round(SIZE / 2.1);
     const tg = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
     tg.rotateX(-Math.PI / 2);
     const tp = tg.attributes.position;
@@ -154,7 +159,7 @@ export class Forest {
     tg.setAttribute('color', new THREE.BufferAttribute(tcol, 3));
     tg.computeVertexNormals();
     const gtex = makePaintTexture(150, 32); // chunky low-res texture, PlayStation style
-    gtex.repeat.set(75, 75);
+    gtex.repeat.set(105, 105);
     this.group.add(new THREE.Mesh(tg, lit({ vertexColors: true, map: gtex })));
 
     // the water: one big translucent sheet at sea level (the land pokes up through it)
@@ -173,7 +178,7 @@ export class Forest {
     }
 
     // flowers and soft patches on the grass
-    const patchCount = 130;
+    const patchCount = 290;
     const patches = instanced(new THREE.CylinderGeometry(0.5, 0.5, 0.03, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }), patchCount);
     for (let i = 0; i < patchCount; i++) {
       let x = 0, z = 0;
@@ -197,7 +202,7 @@ export class Forest {
       });
       placed.push({ x, z });
     };
-    for (let attempt = 0; attempt < 16000 && shrooms.length < 360; attempt++) {
+    for (let attempt = 0; attempt < 40000 && shrooms.length < 800; attempt++) {
       const x = between(-HALF + 3, HALF - 3);
       const z = between(-HALF + 3, HALF - 3);
       if (!dry(x, z) || !clear(x, z) || !spaced(x, z, 4.2)) continue;
@@ -205,7 +210,7 @@ export class Forest {
     }
     // Wee Woods is thick with them
     const wood = POIS.find((p) => p.kind === 'woods')!;
-    for (let attempt = 0; attempt < 3000 && shrooms.length < 460; attempt++) {
+    for (let attempt = 0; attempt < 6000 && shrooms.length < 960; attempt++) {
       const a = rnd() * Math.PI * 2;
       const r = Math.sqrt(rnd()) * wood.r;
       const x = wood.x + Math.cos(a) * r;
@@ -240,7 +245,7 @@ export class Forest {
 
     // --- rocks and fallen logs: low cover --------------------------------------------------
     const rockList: { x: number; z: number; w: number; h: number }[] = [];
-    for (let attempt = 0; attempt < 3000 && rockList.length < 100; attempt++) {
+    for (let attempt = 0; attempt < 6000 && rockList.length < 220; attempt++) {
       const x = between(-HALF + 4, HALF - 4);
       const z = between(-HALF + 4, HALF - 4);
       if (heightAt(x, z) < 0.3 || !clear(x, z, 0.5) || !spaced(x, z, 3)) continue;
@@ -256,7 +261,7 @@ export class Forest {
     this.group.add(rocks);
 
     const logList: { x: number; z: number; w: number; d: number }[] = [];
-    for (let attempt = 0; attempt < 3000 && logList.length < 50; attempt++) {
+    for (let attempt = 0; attempt < 6000 && logList.length < 110; attempt++) {
       const x = between(-HALF + 6, HALF - 6);
       const z = between(-HALF + 6, HALF - 6);
       if (!dry(x, z, 0.8) || !clear(x, z, 1) || !spaced(x, z, 4.2)) continue;
@@ -273,7 +278,7 @@ export class Forest {
     this.group.add(logs);
 
     // --- glowing little mushrooms (decor) --------------------------------------------------
-    const smallN = 460;
+    const smallN = 1000;
     const stems = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 6), lit({ color: 0x6a6458 }), smallN);
     const caps = instanced(new THREE.ConeGeometry(0.62, 1, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), smallN);
     for (let i = 0; i < smallN; i++) {
@@ -289,7 +294,7 @@ export class Forest {
     // lily pads on the ponds
     const lilies = instanced(new SoftBox(1, 0.05, 1), new THREE.MeshBasicMaterial({ color: 0x2a5a32 }), 36);
     for (let i = 0; i < 36; i++) {
-      const pond = i < 18 ? { x: -50, z: 52 } : { x: -42, z: -34 };
+      const pond = i < 18 ? { x: -50 * K, z: 52 * K } : { x: -42 * K, z: -34 * K };
       put(lilies, i, pond.x + between(-7, 7), SEA + 0.1, pond.z + between(-7, 7), between(1.1, 1.8), 1, between(1.1, 1.8), rnd() * 3);
     }
     this.group.add(lilies);
@@ -297,7 +302,7 @@ export class Forest {
     this.buildPlaces(between);
 
     // --- fireflies ------------------------------------------------------------------------------
-    const flyN = 200;
+    const flyN = 350;
     this.flies = instanced(new SoftBox(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xc8d870 }), flyN);
     for (let i = 0; i < flyN; i++) {
       const x = between(-HALF, HALF);
@@ -307,11 +312,11 @@ export class Forest {
     this.group.add(this.flies);
 
     // --- name signs floating over every place ----------------------------------------------------------
-    for (const p of POIS) {
-      const sign = makeSign(p.name, p.color);
+    POIS.forEach((p, i) => {
+      const sign = makeSign(p.name, i % 2 ? '#2af0ff' : '#ff3ad8');
       sign.position.set(p.x, Math.max(heightAt(p.x, p.z), SEA) + (p.kind === 'peak' ? 12 : 17), p.z);
       this.group.add(sign);
-    }
+    });
   }
 
   /** The built places: a village, a depot, a farm, standing stones, a mountain-top pavilion and so on. */
@@ -349,7 +354,7 @@ export class Forest {
 
     // Tinkle Town: a ring of pastel mushroom-houses round a fountain
     {
-      const cx = 42, cz = 22;
+      const cx = 42 * K, cz = 22 * K;
       const colors = [0x8a7e68, 0x7a7060, 0x9a8c70, 0x6a6050, 0x8a806c, 0x76705e, 0x948a74, 0x6e665a];
       for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2 + 0.2;
@@ -367,13 +372,26 @@ export class Forest {
       const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 2.6, 8), mat(0x6a6e78));
       spout.position.set(cx, base + 1.9, cz);
       this.group.add(fountain, water, spout);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(2.85, 0.09, 6, 28).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff3ad8 }));
+      ring.position.set(cx, base + 0.95, cz);
+      this.group.add(ring);
       this.addCircle(cx, cz, 2.9, base + 0.9);
     }
 
+    /** A glowing tube. */
+    const neon = (x: number, y: number, z: number, w: number, h: number, d: number, color: number) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color }));
+      m.position.set(x, y, z);
+      this.group.add(m);
+    };
+
     // Gnome Depot: a big grey warehouse with an orange roof, sheds and stacked crates
     {
-      const cx = -40, cz = 10;
+      const cx = -40 * K, cz = 10 * K;
       const top = block(cx, cz - 4, 19, 11, 7, 0x4a4e58);
+      neon(cx, heightAt(cx, cz) + 7.95, cz - 4 + 5.95, 19.8, 0.25, 0.25, 0x2af0ff);
+      neon(cx, heightAt(cx, cz) + 7.95, cz - 4 - 5.95, 19.8, 0.25, 0.25, 0xff3ad8);
+      neon(cx - 9.9, heightAt(cx, cz) + 7.95, cz - 4, 0.25, 0.25, 11.8, 0x2af0ff);
       block(cx, cz - 4, 19.6, 11.6, 0.8, 0x24242a, false, 7);
       void top;
       block(cx - 12, cz + 7, 5, 4, 3, 0x3a3e48);
@@ -393,7 +411,7 @@ export class Forest {
 
     // Chili Fields: a red barn and long rows of chili plants
     {
-      const cx = 6, cz = 50;
+      const cx = 6 * K, cz = 50 * K;
       const top = block(cx + 8, cz - 8, 9, 7, 5, 0x6a2424);
       roof(cx + 8, cz - 8, top, 7, 3, 0x24242a);
       const plants = instanced(new THREE.ConeGeometry(0.5, 1.2, 6), lit({ color: 0xffffff, flatShading: true }), 120);
@@ -423,6 +441,7 @@ export class Forest {
         stone.rotation.y = a;
         this.group.add(stone);
         this.addCircle(x, z, 0.8, heightAt(x, z) + h);
+        neon(x, heightAt(x, z) + h * 0.62, z, 1.45, 0.14, 1.45, k % 2 ? 0x2af0ff : 0xff3ad8); // a glowing rune band
       }
       const altar = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3, 0.6, 10), mat(0x8a8e98));
       altar.position.set(0, base + 0.3, 0);
@@ -431,7 +450,7 @@ export class Forest {
 
     // Pee-nacle Peak: a pavilion on the summit with a flag
     {
-      const sx = 36, sz = -44;
+      const sx = 36 * K, sz = -44 * K;
       for (const [dx, dz] of [[-3.2, -3.2], [3.2, -3.2], [-3.2, 3.2], [3.2, 3.2]]) pillar(sx + dx, sz + dz, 0.5, 4.5, 0x8a2424);
       const g = heightAt(sx, sz);
       const top = new THREE.Mesh(new SoftBox(8.6, 0.7, 8.6), mat(0x24242a));
@@ -444,11 +463,12 @@ export class Forest {
       const flag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.8), new THREE.MeshBasicMaterial({ color: 0xa8222a, side: THREE.DoubleSide }));
       flag.position.set(sx + 1.7, g + 12.6, sz);
       this.group.add(top, cap, pole, flag);
+      for (const [dx, dz, w, d] of [[0, 4.35, 8.8, 0.2], [0, -4.35, 8.8, 0.2], [4.35, 0, 0.2, 8.8], [-4.35, 0, 0.2, 8.8]] as const) neon(sx + dx, g + 4.55, sz + dz, w, 0.2, d, 0xff3ad8);
     }
 
     // Soggy Bottom: a hut on the island in the lake
     {
-      const hx = -42, hz = -40;
+      const hx = -42 * K, hz = -40 * K;
       const top = block(hx, hz, 4.4, 4.4, 3, 0x6a4a2a);
       roof(hx, hz, top, 3.6, 2.4, 0x2a3a2a);
       for (let k = 0; k < 8; k++) {
@@ -463,7 +483,7 @@ export class Forest {
 
     // Dribble Falls: a rocky ledge with a sheet of falling water
     {
-      const fx = 52, fz = -26;
+      const fx = 52 * K, fz = -26 * K;
       block(fx - 3, fz, 3, 6, 5, 0x5a5e68);
       block(fx + 3, fz, 3, 6, 4, 0x50545e);
       const g = heightAt(fx, fz + 3);
@@ -476,7 +496,7 @@ export class Forest {
     {
       for (let k = 0; k < 9; k++) {
         const a = -Math.PI / 2 + (k - 4) * 0.075;
-        const rr = 66.5 + (k % 2) * 1.5;
+        const rr = 66.5 * K + (k % 2) * 1.5;
         const x = Math.cos(a) * rr;
         const z = Math.sin(a) * rr;
         if (heightAt(x, z) < 0.05) continue;
@@ -505,13 +525,13 @@ export class Forest {
         }
       }
       const posts = instanced(new THREE.CylinderGeometry(0.28, 0.34, 1.3, 6), mat(0x6a6e78), spots.length);
-      const heads = instanced(new THREE.BoxGeometry(0.8, 0.7, 0.8), new THREE.MeshBasicMaterial({ color: 0xffa040 }), spots.length);
+      const heads = instanced(new THREE.BoxGeometry(0.8, 0.7, 0.8), new THREE.MeshBasicMaterial({ color: 0xffffff }), spots.length);
       const hats = instanced(new THREE.ConeGeometry(0.75, 0.55, 4), mat(0x50545e), spots.length);
       spots.forEach((p, i) => {
         const g = heightAt(p.x, p.z);
         if (g < 0.2) { put(posts, i, 0, -50, 0, 0.001, 0.001, 0.001); put(heads, i, 0, -50, 0, 0.001, 0.001, 0.001); put(hats, i, 0, -50, 0, 0.001, 0.001, 0.001); return; }
         put(posts, i, p.x, g + 0.65, p.z, 1, 1, 1);
-        put(heads, i, p.x, g + 1.65, p.z, 1, 1, 1);
+        put(heads, i, p.x, g + 1.65, p.z, 1, 1, 1, 0, [0xffa040, 0xffa040, 0xffa040, 0x30e8ff, 0xff30c8][i % 5]); // mostly warm, some neon
         put(hats, i, p.x, g + 2.2, p.z, 1, 1, 1, Math.PI / 4);
         this.addCircle(p.x, p.z, 0.4, g + 2);
       });
@@ -524,8 +544,8 @@ export class Forest {
       for (let i = 0; i < 26; i++) {
         const a = rnd2() * Math.PI * 2;
         const r = 2 + rnd2() * 10;
-        const x = -62 + Math.cos(a) * r;
-        const z = -6 + Math.sin(a) * r;
+        const x = -62 * K + Math.cos(a) * r;
+        const z = -6 * K + Math.sin(a) * r;
         const h = 2 + rnd2() * 4.5;
         put(crys, i, x, heightAt(x, z) + h / 2 - 0.3, z, 1 + rnd2() * 0.8, h, 1 + rnd2() * 0.8, rnd2() * 3, [0x5a8a9a, 0x7aa8b8, 0x4a7a8a][i % 3]);
       }

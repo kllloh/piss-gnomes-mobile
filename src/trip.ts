@@ -119,6 +119,7 @@ uniform float pulse;
 uniform float tint;
 uniform float mode;
 uniform float modeAmt;
+uniform float cyber;
 uniform sampler2D tDepth;
 uniform float cnear;
 uniform float cfar;
@@ -165,7 +166,7 @@ void main() {
   if (mode > 2.5) uv += modeAmt * 0.006 * vec2(sin(uv.y * 9.0 + time * 1.1), cos(uv.x * 7.0 + time * 0.9));
   uv += c * (amp * 0.04 * sin(time * 0.8) + pulse * amp * 0.03) * (0.3 + r * 2.0);
   // colour fringes
-  float ca = amp * (0.002 + 0.004 * pulse) * (0.4 + r * 3.0);
+  float ca = (amp + cyber * 2.0) * (0.002 + 0.004 * pulse) * (0.4 + r * 3.0);
   vec3 col;
   col.r = texture2D(tDiffuse, uv + c * ca).r;
   col.g = texture2D(tDiffuse, uv).g;
@@ -207,6 +208,13 @@ void main() {
     }
   }
   if (outlineAmt > 0.001) col = mix(col, vec3(0.04, 0.015, 0.1), inkEdge(uv) * 0.5 * outlineAmt);
+  if (cyber > 0.001) {
+    // a touch of cyberpunk: teal in the shadows, magenta in the lights, a glow on the bright bits, and scanlines on the low-res pixel rows
+    float cl = dot(col, vec3(0.299, 0.587, 0.114));
+    col += cyber * 1.4 * mix(vec3(0.0, 0.45, 0.55), vec3(0.85, 0.05, 0.6), smoothstep(0.12, 0.7, cl)) * (0.35 + cl);
+    col += cyber * 2.2 * max(col - 0.5, 0.0) * vec3(0.5, 0.85, 1.0);
+    col *= 1.0 - cyber * 1.6 * step(0.5, fract(gl_FragCoord.y * 0.5));
+  }
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
   // PlayStation-style 15-bit colour with a fine ordered dither, in the low-res pixels
@@ -235,6 +243,7 @@ export class Trip {
     cnear: { value: 0.1 },
     cfar: { value: 160 },
     outlineAmt: { value: 0 },
+    cyber: { value: 0.1 },
   };
   /** Camera planes, for turning depth back into distance. */
   setPlanes(near: number, far: number) {

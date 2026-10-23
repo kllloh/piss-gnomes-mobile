@@ -5,7 +5,7 @@ import { heightAt } from './map';
 import { PEE, POTION_KINDS, KIND_BIT, type PeeKind } from './pee';
 import type { Gnome } from './gnomes';
 
-const COUNT = 30;
+const COUNT = 60;
 const RESPAWN = 25;
 const GRAB = 1.5;
 export const POTION_TIME = 25;
@@ -52,7 +52,7 @@ export class Potions {
   constructor(scene: THREE.Scene, forest: Forest) {
     for (const k of POTION_KINDS) this.geos.set(k, bottleGeometry(PEE[k].color));
     const taken: { x: number; z: number }[] = [];
-    for (let attempt = 0; attempt < 1500 && this.items.length < COUNT; attempt++) {
+    for (let attempt = 0; attempt < 4000 && this.items.length < COUNT; attempt++) {
       const p = forest.randomFree(HALF - 6);
       if (taken.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 18)) continue;
       taken.push({ x: p.x, z: p.z });
@@ -101,7 +101,7 @@ export class Potions {
       it.bottle.rotation.y = t * 1.6;
       it.group.position.y = it.gy + Math.sin(t * 2 + it.x) * 0.12;
       for (const g of gnomes) {
-        if (!g.alive || g.flight !== 'ground' || g.potions[it.kind as 'chili'] > 0) continue; // a kind you already hold is left for a mix
+        if (!g.alive || g.potions[it.kind as 'chili'] > 0) continue; // a kind you already hold is left for a mix
         const dx = g.pos.x - it.x;
         const dz = g.pos.z - it.z;
         if (dx * dx + dz * dz < GRAB * GRAB) {

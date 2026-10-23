@@ -3,6 +3,8 @@
  * terrain mesh, the colliders, the minimap, the bots and the droplets all agree about where the ground and the water are.
  */
 
+/** How much bigger the island is than the first version of it. */
+export const K = 1.5;
 export const SEA = -0.35;
 /** Beyond this much water you cannot wade any deeper. */
 export const DEEP = 1.35;
@@ -18,7 +20,7 @@ export interface Poi {
   color: string;
 }
 
-export const POIS: Poi[] = [
+const RAW_POIS: Poi[] = [
   { name: 'Pee-nacle Peak', x: 36, z: -44, r: 24, kind: 'peak', color: '#ff5aa5' },
   { name: 'Soggy Bottom', x: -42, z: -40, r: 20, kind: 'lake', color: '#1a8ad0' },
   { name: 'Stonehedge', x: 0, z: 0, r: 16, kind: 'stones', color: '#7a5aa8' },
@@ -33,8 +35,10 @@ export const POIS: Poi[] = [
   { name: 'Wee Woods', x: 22, z: 62, r: 20, kind: 'woods', color: '#2a9a1a' },
 ];
 
+export const POIS: Poi[] = RAW_POIS.map((p) => ({ ...p, x: p.x * K, z: p.z * K, r: p.r * K }));
+
 interface Blob { x: number; z: number; r: number; h: number }
-const HILLS: Blob[] = [
+const RAW_HILLS: Blob[] = [
   { x: 36, z: -44, r: 22, h: 15 }, // Pee-nacle Peak
   { x: -62, z: -6, r: 14, h: 11 }, // Ice Wee Glacier
   { x: -20, z: 40, r: 12, h: 4 },
@@ -43,7 +47,7 @@ const HILLS: Blob[] = [
   { x: 12, z: -26, r: 11, h: 3 },
   { x: 26, z: 66, r: 13, h: 3 },
 ];
-const LAKES: Blob[] = [
+const RAW_LAKES: Blob[] = [
   { x: -42, z: -40, r: 16, h: 4.6 }, // Soggy Bottom
   { x: -50, z: 52, r: 9, h: 3.1 }, // Puddle Pond
   { x: -10, z: -48, r: 8, h: 3.1 }, // Acid Swamp
@@ -51,15 +55,15 @@ const LAKES: Blob[] = [
   { x: -18, z: -42, r: 5, h: 3 },
 ];
 /** The acid pools: green water over the lake floors of the swamp. */
-export const ACID_POOLS = [
+const RAW_POOLS = [
   { x: -10, z: -48, r: 7.2 },
   { x: 6, z: -58, r: 5.2 },
   { x: -18, z: -42, r: 4.2 },
 ];
-const RIVER = [[52, -22], [58, -10], [64, 4], [72, 14], [86, 22]] as const;
-const RIVER_W = 2.8;
+const RIVER = ([[52, -22], [58, -10], [64, 4], [72, 14], [86, 22]] as const).map(([x, z]) => [x * K, z * K] as const);
+const RIVER_W = 3.4;
 interface Pad { x: number; z: number; r: number; y: number }
-const PADS: Pad[] = [
+const RAW_PADS: Pad[] = [
   { x: 0, z: 0, r: 15, y: 1.9 }, // Stonehedge
   { x: 42, z: 22, r: 17, y: 1.5 }, // Tinkle Town
   { x: -40, z: 10, r: 15, y: 1.8 }, // Gnome Depot
@@ -67,6 +71,11 @@ const PADS: Pad[] = [
   { x: 36, z: -44, r: 5, y: 16.3 }, // the summit
   { x: -42, z: -40, r: 4.2, y: 0.7 }, // the island in Soggy Bottom
 ];
+
+const HILLS: Blob[] = RAW_HILLS.map((b) => ({ x: b.x * K, z: b.z * K, r: b.r * K, h: b.h }));
+const LAKES: Blob[] = RAW_LAKES.map((b) => ({ x: b.x * K, z: b.z * K, r: b.r * K, h: b.h }));
+export const ACID_POOLS = RAW_POOLS.map((p) => ({ x: p.x * K, z: p.z * K, r: p.r * K }));
+const PADS: Pad[] = RAW_PADS.map((p) => ({ x: p.x * K, z: p.z * K, r: p.r * K, y: p.y }));
 
 function hash(ix: number, iz: number): number {
   const n = Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453;
@@ -98,8 +107,8 @@ function distToSegment(px: number, pz: number, ax: number, az: number, bx: numbe
 function rawHeight(x: number, z: number): number {
   const r = Math.hypot(x, z);
   // an island: land inside about 72 units, sea beyond
-  let h = 2.2 - smooth(58, 86, r + 6 * fbm(x * 0.05, z * 0.05)) * 7.6;
-  h += fbm(x * 0.045, z * 0.045) * 1.6;
+  let h = 2.2 - smooth(58 * K, 86 * K, r + 9 * fbm(x * 0.034, z * 0.034)) * 7.6;
+  h += fbm(x * 0.03, z * 0.03) * 1.7;
   for (const b of HILLS) {
     const d2 = (x - b.x) ** 2 + (z - b.z) ** 2;
     h += b.h * Math.exp(-d2 / (b.r * b.r));
@@ -125,7 +134,7 @@ function rawHeight(x: number, z: number): number {
 
 // --- a sampled copy: runtime lookups are a bilinear read, not 30 exponentials ------------------------------------
 
-const EXT = 100; // grid covers -EXT..EXT
+const EXT = 150; // grid covers -EXT..EXT
 const STEP = 1;
 const N = Math.round((2 * EXT) / STEP) + 1;
 const grid = new Float32Array(N * N);
@@ -170,7 +179,7 @@ export function poiAt(x: number, z: number): Poi | null {
 /** The nearest dry spot to (x, z), for placing things that must not be in the sea. */
 export function landNear(x: number, z: number, minH = 0.6): { x: number; z: number } {
   if (heightAt(x, z) > minH) return { x, z };
-  for (let r = 2; r < 80; r += 2) {
+  for (let r = 2; r < 120; r += 2) {
     for (let k = 0; k < 16; k++) {
       const a = (k / 16) * Math.PI * 2;
       const px = x + Math.cos(a) * r;
@@ -186,22 +195,22 @@ export function groundColor(x: number, z: number, h: number, out: [number, numbe
   const n = fbm(x * 0.12, z * 0.12) + 0.5; // 0..1 patchiness
   let r = 0.15 + n * 0.07, g = 0.27 - n * 0.06, b = 0.15 + n * 0.05; // mossy night grass
   // soil and crops
-  const farm = Math.hypot(x - 6, z - 50);
-  if (farm < 15) {
+  const farm = Math.hypot(x - 6 * K, z - 50 * K);
+  if (farm < 15 * K) {
     const row = 0.5 + 0.5 * Math.sin(z * 1.3);
     r = 0.26 + row * 0.07; g = 0.18 + row * 0.05; b = 0.12;
   }
   // the swamp
-  const swamp = Math.hypot(x + 6, z + 50);
-  if (swamp < 16) { const w = 1 - smooth(8, 16, swamp); r += (0.14 - r) * w; g += (0.24 - g) * w * 0.6; b += (0.1 - b) * w; }
+  const swamp = Math.hypot(x + 6 * K, z + 50 * K);
+  if (swamp < 16 * K) { const w = 1 - smooth(8 * K, 16 * K, swamp); r += (0.14 - r) * w; g += (0.24 - g) * w * 0.6; b += (0.1 - b) * w; }
   // muddy sand by the water, bare rock and snow up high
   if (h < 0.7) { const w = smooth(0.7, -0.3, h); r += (0.42 - r) * w; g += (0.36 - g) * w; b += (0.26 - b) * w; }
   if (h < SEA) { const w = smooth(SEA, -2.5, h); r += (0.08 - r) * w; g += (0.16 - g) * w; b += (0.2 - b) * w; } // the sea bed
   if (h > 7) { const w = smooth(7, 10.5, h); r += (0.3 - r) * w; g += (0.3 - g) * w; b += (0.34 - b) * w; }
   if (h > 13) { const w = smooth(13, 15, h); r += (0.66 - r) * w; g += (0.68 - g) * w; b += (0.74 - b) * w; }
   // the glacier is dull ice
-  const ice = Math.hypot(x + 62, z + 6);
-  if (ice < 17 && h > 1.5) { const w = (1 - smooth(8, 17, ice)) * smooth(1.5, 4, h); r += (0.46 - r) * w; g += (0.58 - g) * w; b += (0.66 - b) * w; }
+  const ice = Math.hypot(x + 62 * K, z + 6 * K);
+  if (ice < 17 * K && h > 1.5) { const w = (1 - smooth(8 * K, 17 * K, ice)) * smooth(1.5, 4, h); r += (0.46 - r) * w; g += (0.58 - g) * w; b += (0.66 - b) * w; }
   out[0] = r; out[1] = g; out[2] = b;
 }
 
