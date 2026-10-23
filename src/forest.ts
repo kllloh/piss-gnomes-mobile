@@ -113,66 +113,48 @@ export class Forest {
     }
     this.group.add(thorns);
 
-    // --- trees: trunk + two leafy tiers (the tiers shrink away from whoever is under them) ---
+    // --- the forest is mushrooms: a stem you cannot walk through and a big candy cap overhead ---
     const placed: { x: number; z: number }[] = [];
     const spaced = (x: number, z: number, d: number) => placed.every((p) => Math.hypot(p.x - x, p.z - z) >= d);
-    interface TreeSpec { x: number; z: number; h: number; w: number; s: number; col: number }
-    const trees: TreeSpec[] = [];
-    for (let attempt = 0; attempt < 3000 && trees.length < 105; attempt++) {
+    interface Shroom { x: number; z: number; h: number; w: number; s: number; col: number }
+    const shrooms: Shroom[] = [];
+    for (let attempt = 0; attempt < 3000 && shrooms.length < 105; attempt++) {
       const x = between(-HALF + 3, HALF - 3);
       const z = between(-HALF + 3, HALF - 3);
-      if (!clear(x, z) || !spaced(x, z, 3.6)) continue;
+      if (!clear(x, z) || !spaced(x, z, 4)) continue;
       const big = rnd() < 0.15;
-      trees.push({
+      shrooms.push({
         x, z,
-        h: big ? between(6.5, 8.5) : between(3.6, 5.4),
-        w: big ? between(1.3, 1.7) : between(0.7, 1),
-        s: big ? between(1.35, 1.6) : between(0.75, 1.05),
-        col: pick([0xff7ab8, 0xffd34a, 0x6ad4ff, 0x8ae04a, 0xb08aff, 0xff9a4a]),
+        h: big ? between(6.5, 8.2) : between(3.7, 5.2),
+        w: big ? between(1.5, 1.9) : between(0.8, 1.1),
+        s: big ? between(1.35, 1.6) : between(0.85, 1.15),
+        col: pick([0xff4a6a, 0xffb02a, 0x6a8aff, 0xb06aff, 0xff7ab8, 0x3ad0a0, 0xffd34a]),
       });
       placed.push({ x, z });
     }
-    const trunks = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 6), lit({ color: 0xffffff }), trees.length);
-    const tiers = [0, 1].map(() => instanced(new THREE.IcosahedronGeometry(0.62, 0), lit({ color: 0xffffff, flatShading: true }), trees.length));
-    trees.forEach((t, i) => {
-      put(trunks, i, t.x, t.h / 2, t.z, t.w, t.h, t.w, 0, pick([0xc08a5a, 0xb07848, 0xd09a6a]));
-      const canopy: Canopy = { x: t.x, z: t.z, fade: 0, parts: [] };
-      for (let l = 0; l < 2; l++) {
-        const width = 4.2 * t.s * (1 - l * 0.34);
-        const hh = 2.4 * t.s;
-        const p: Part = { m: tiers[l], i, x: t.x, y: t.h - 0.9 * t.s + l * 1.7 * t.s + hh / 2, z: t.z, sx: width, sy: hh, sz: width, ry: 0.3 * l };
-        put(p.m, i, p.x, p.y, p.z, p.sx, p.sy, p.sz, p.ry, t.col);
-        canopy.parts.push(p);
+    const n = shrooms.length;
+    const mStems = instanced(new THREE.CylinderGeometry(0.42, 0.5, 1, 8), lit({ color: 0xffffff, emissive: 0x4a4030 }), n);
+    const mCaps = instanced(new THREE.SphereGeometry(0.5, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), lit({ color: 0xffffff, flatShading: true }), n);
+    const mGills = instanced(new THREE.CircleGeometry(0.5, 12).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }), n);
+    const SPOTS = 5;
+    const mSpots = instanced(new THREE.SphereGeometry(0.5, 6, 4), lit({ color: 0xffffff, flatShading: true }), n * SPOTS);
+    shrooms.forEach((m, i) => {
+      put(mStems, i, m.x, m.h / 2, m.z, m.w, m.h, m.w, 0, pick([0xfff0d8, 0xffe4ec, 0xf6f0c8]));
+      const capW = 4.6 * m.s;
+      const capH = 1.9 * m.s;
+      const base = m.h - 0.15;
+      put(mCaps, i, m.x, base, m.z, capW, capH * 2, capW, rnd() * 3, m.col); // the hemisphere has radius 0.5, so scaling y by 2h gives height h
+      put(mGills, i, m.x, base + 0.02, m.z, capW, 1, capW, 0, 0xffe8c8);
+      for (let k = 0; k < SPOTS; k++) {
+        const ang = rnd() * Math.PI * 2 + k;
+        const r = (0.25 + rnd() * 0.55) * (capW / 2);
+        const yy = base + capH * Math.sqrt(Math.max(0, 1 - (r / (capW / 2)) ** 2)) - 0.05;
+        const sp = (0.35 + rnd() * 0.3) * m.s;
+        put(mSpots, i * SPOTS + k, m.x + Math.cos(ang) * r, yy, m.z + Math.sin(ang) * r, sp, sp * 0.4, sp, 0, 0xfffdf0);
       }
-      this.canopies.push(canopy);
-      this.addCircle(t.x, t.z, t.w * 0.5 + 0.1, t.h);
+      this.addCircle(m.x, m.z, m.w * 0.5 + 0.1, m.h);
     });
-    this.group.add(trunks, ...tiers);
-
-    // --- giant mushrooms: solid stem, big cap that also shrinks away from you --------------
-    const giants: { x: number; z: number; s: number; col: number }[] = [];
-    for (let attempt = 0; attempt < 600 && giants.length < 12; attempt++) {
-      const x = between(-HALF + 5, HALF - 5);
-      const z = between(-HALF + 5, HALF - 5);
-      if (!clear(x, z, 1.5) || !spaced(x, z, 5.5)) continue;
-      giants.push({ x, z, s: between(0.9, 1.3), col: pick([0xff4a6a, 0xffb02a, 0x6a8aff, 0xb06aff]) });
-      placed.push({ x, z });
-    }
-    const gStem = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 8), lit({ color: 0xf0e4d2 }), giants.length);
-    const gCap = instanced(new THREE.ConeGeometry(0.62, 1, 10), lit({ color: 0xffffff, flatShading: true }), giants.length);
-    giants.forEach((g, i) => {
-      const sw = 1.5 * g.s;
-      const sh = 3.6 * g.s;
-      put(gStem, i, g.x, sh / 2, g.z, sw, sh, sw);
-      const cw = 5.4 * g.s;
-      const canopy: Canopy = { x: g.x, z: g.z, fade: 0, parts: [] };
-      const p: Part = { m: gCap, i, x: g.x, y: sh + 0.55 * g.s, z: g.z, sx: cw, sy: 1.3 * g.s, sz: cw, ry: 0 };
-      put(p.m, i, p.x, p.y, p.z, p.sx, p.sy, p.sz, 0, g.col);
-      canopy.parts.push(p);
-      this.canopies.push(canopy);
-      this.addCircle(g.x, g.z, sw * 0.5 + 0.1, sh);
-    });
-    this.group.add(gStem, gCap);
+    this.group.add(mStems, mCaps, mGills, mSpots);
 
     // --- rocks and fallen logs: low cover --------------------------------------------------
     const rockList: { x: number; z: number; w: number; h: number }[] = [];

@@ -46,3 +46,6 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Looks:** a bright, chunky, Katamari-on-PS2 world (candy trees, pastel sky and clouds, fat rounded UI, soft low-res picture). It only
   goes psychedelic when you are badly hurt. Nathaniel only speaks when you touch him, and the bugs are blocky voxel beetles.
 - **Taunts:** bots yell things like "Taste the rainbow!" and "Don't slip!" as they open fire, and when they win a fight.
+- **Mushroom forest:** the trees are now giant candy mushrooms (stems block movement and pee; caps are overhead).
+- **Thumb-friendly controls:** JUMP and PEE sit lifted off the bottom corners and are size-capped on tablets. You can slide your
+  thumb on the PEE button to aim while you pee. The start screen now has a full How To Play section.

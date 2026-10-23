@@ -48,8 +48,28 @@ export class Input {
     el.addEventListener('pointercancel', (e) => this.up(e));
     el.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    const bd = (e: PointerEvent) => { e.preventDefault(); this.touch = true; this.btnFire = true; peeBtn.classList.add('on'); try { peeBtn.setPointerCapture(e.pointerId); } catch { /* fine */ } };
-    const bu = () => { this.btnFire = false; peeBtn.classList.remove('on'); };
+    // the PEE button can be held and slid at the same time: one thumb pees and aims
+    let peeId = -1;
+    let px = 0;
+    let py = 0;
+    const bd = (e: PointerEvent) => {
+      e.preventDefault();
+      this.touch = true;
+      this.btnFire = true;
+      peeId = e.pointerId;
+      px = e.clientX;
+      py = e.clientY;
+      peeBtn.classList.add('on');
+      try { peeBtn.setPointerCapture(e.pointerId); } catch { /* fine */ }
+    };
+    peeBtn.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== peeId) return;
+      this.lookYaw += (e.clientX - px) * TOUCH_LOOK;
+      this.lookPitch -= (e.clientY - py) * TOUCH_LOOK;
+      px = e.clientX;
+      py = e.clientY;
+    });
+    const bu = () => { this.btnFire = false; peeId = -1; peeBtn.classList.remove('on'); };
     peeBtn.addEventListener('pointerdown', bd);
     peeBtn.addEventListener('pointerup', bu);
     peeBtn.addEventListener('pointercancel', bu);

@@ -29,14 +29,15 @@
   .stick .knob { position: absolute; left: 0; top: 0; width: 58px; height: 58px; border-radius: 50%; background: var(--cyan); border: 5px solid #fff; box-shadow: 0 4px 0 var(--shadow); transform: translate(-50%, -50%); }
   #crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; z-index: 4; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--ink); }
   #peeBtn, #jumpBtn { position: fixed; border-radius: 50%; z-index: 9; letter-spacing: 2px; border: 6px solid #fff; color: #fff; touch-action: none; user-select: none; -webkit-user-select: none; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
-  #peeBtn { right: calc(4vmin + var(--sr)); bottom: calc(5vmin + var(--sb)); width: 24vmin; height: 24vmin; min-width: 84px; min-height: 84px; font-size: clamp(18px, 4vmin, 28px); background: radial-gradient(circle at 35% 30%, #ffe86a, #ff9a1a); box-shadow: 0 7px 0 #b3590a, 0 12px 18px rgba(0,0,0,.25); }
-  #jumpBtn { left: calc(3vmin + var(--sl)); bottom: calc(5vmin + var(--sb)); width: 17vmin; height: 17vmin; min-width: 66px; min-height: 66px; font-size: clamp(13px, 3vmin, 21px); background: radial-gradient(circle at 35% 30%, #8ae6ff, #2a8aff); box-shadow: 0 6px 0 #1a56b3, 0 10px 16px rgba(0,0,0,.25); }
+  /* sized by the screen but capped, so on a tablet they stay under a thumb; lifted off the edge where thumbs rest */
+  #peeBtn { right: calc(max(5vmin, 22px) + var(--sr)); bottom: calc(max(9vmin, 30px) + var(--sb)); width: clamp(92px, 23vmin, 168px); height: clamp(92px, 23vmin, 168px); font-size: clamp(18px, 4vmin, 28px); background: radial-gradient(circle at 35% 30%, #ffe86a, #ff9a1a); box-shadow: 0 7px 0 #b3590a, 0 12px 18px rgba(0,0,0,.25); }
+  #jumpBtn { left: calc(max(5vmin, 22px) + var(--sl)); bottom: calc(max(9vmin, 30px) + var(--sb)); width: clamp(76px, 17vmin, 128px); height: clamp(76px, 17vmin, 128px); font-size: clamp(13px, 3vmin, 21px); background: radial-gradient(circle at 35% 30%, #8ae6ff, #2a8aff); box-shadow: 0 6px 0 #1a56b3, 0 10px 18px rgba(0,0,0,.25); }
   #peeBtn.on, #jumpBtn.on { transform: translateY(5px) scale(.96); filter: brightness(1.12); box-shadow: 0 2px 0 rgba(0,0,0,.3); }
   body.desktop #peeBtn, body.desktop #jumpBtn { display: none; }
   body.inmenu #peeBtn, body.inmenu #jumpBtn, body.inmenu #crosshair { display: none; }
   .hint { position: fixed; bottom: calc(14vh + var(--sb)); width: 40vw; text-align: center; font-size: clamp(12px, 2.2vmin, 17px); letter-spacing: 1px; pointer-events: none; z-index: 4; transition: opacity 1s; color: #fff; text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); }
-  #hintL { left: calc(5vw + var(--sl)); bottom: calc(30vh + var(--sb)); }
-  #hintR { right: calc(32vmin + var(--sr)); width: 30vw; }
+  #hintL { left: calc(5vw + var(--sl)); bottom: calc(34vh + var(--sb)); }
+  #hintR { right: calc(5vw + var(--sr)); bottom: calc(40vh + var(--sb)); width: 36vw; }
   .hint b { display: block; font-size: 1.4em; margin-bottom: 4px; }
   body.desktop .hint { display: none; }
   body.inmenu #bubbles, body.inmenu #hud, body.inmenu .hint, body.inmenu .stick { display: none !important; }
@@ -61,7 +62,7 @@
   #banner { position: absolute; left: 0; right: 0; top: 20%; text-align: center; font-size: clamp(28px, 8.5vmin, 68px); letter-spacing: 1px; color: #fff; -webkit-text-stroke: .16em var(--pink); paint-order: stroke fill; text-shadow: 0 .07em 0 #a82a70; opacity: 0; transition: opacity .25s; padding: 0 10px; }
   #banner small { display: block; font-size: .36em; margin-top: 8px; letter-spacing: 1px; color: #fff; -webkit-text-stroke: .3em var(--ink); paint-order: stroke fill; text-shadow: none; }
   #buttons { position: absolute; top: calc(clamp(84px, 17vmin, 124px) + 16px + var(--st)); right: calc(10px + var(--sr)); display: flex; gap: 8px; pointer-events: auto; }
-  #buttons button { width: 42px; height: 42px; padding: 0; font-size: 17px; background: #fff; border: 4px solid var(--cyan); border-radius: 50%; box-shadow: 0 4px 0 var(--shadow); }
+  #buttons button { width: 46px; height: 46px; padding: 0; font-size: 17px; background: #fff; border: 4px solid var(--cyan); border-radius: 50%; box-shadow: 0 4px 0 var(--shadow); }
   #bubbles { position: fixed; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
   .bubble { position: absolute; left: 0; top: 0; max-width: 210px; padding: 6px 12px; font-size: 13px; line-height: 1.25; text-align: center; color: var(--ink); background: #fff; border: 3px solid #fff; border-radius: 16px; box-shadow: 0 0 0 3px var(--ink), 0 5px 0 var(--shadow); transform-origin: 50% 100%; will-change: transform, opacity; transition: opacity .2s; }
   .bubble.big { font-size: 24px; padding: 6px 18px; background: #fff3a0; letter-spacing: 1px; }
@@ -93,9 +94,24 @@
   .big.alt { background: linear-gradient(#7ae0ff, #2a9aff); box-shadow: 0 6px 0 #1a56b3, 0 10px 18px rgba(0,0,0,.22); font-size: clamp(14px, 3vmin, 20px); padding: 9px 28px; }
   #stats { margin: 8px 0 14px; font-size: clamp(14px, 3vmin, 20px); line-height: 1.6; }
   #stats b { color: var(--pink); }
+  #menu { justify-content: flex-start; }
+  #menu::before, #menu::after { content: ''; flex: 1 0 0; }
+  .more { font-size: clamp(11px, 2.3vmin, 14px); opacity: .8; margin: 2px 0 0; }
+  .howto { width: min(940px, 100%); margin: 14px 0 6px; text-align: left; }
+  .howto h2 { text-align: center; margin: 0 0 10px; font-size: clamp(18px, 4vmin, 28px); letter-spacing: 3px; color: #fff; -webkit-text-stroke: .3em var(--ink); paint-order: stroke fill; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .card { padding: 10px 14px 12px; background: #fff; border: 4px solid var(--pink); border-radius: 18px; box-shadow: 0 5px 0 var(--shadow); font-size: clamp(12px, 2.4vmin, 15px); line-height: 1.45; }
+  .card:nth-child(4n+2) { border-color: var(--cyan); } .card:nth-child(4n+3) { border-color: var(--yellow); } .card:nth-child(4n+4) { border-color: var(--green); }
+  .card h3 { margin: 0 0 4px; font-size: 1.15em; letter-spacing: 1px; color: var(--pink); }
+  .card:nth-child(4n+2) h3 { color: #1a8ad0; } .card:nth-child(4n+3) h3 { color: #d08a00; } .card:nth-child(4n+4) h3 { color: #2a9a1a; }
+  .card ul { margin: 0; padding-left: 1.1em; } .card li { margin: 2px 0; }
+  .chip { display: inline-block; padding: 0 8px; border-radius: 999px; color: #fff; font-size: .9em; text-shadow: 0 1px 0 rgba(0,0,0,.35); white-space: nowrap; }
   .keys { opacity: .75; font-size: clamp(10px, 2vmin, 13px); margin-top: 8px; }
-  body:not(.desktop) .keys { display: none; }
+  
   @media (max-aspect-ratio: 1/1) {
+    #bars { width: min(240px, 36vw); }
+    #peeBtn { width: clamp(84px, 24vw, 130px); height: clamp(84px, 24vw, 130px); }
+    #jumpBtn { width: clamp(70px, 19vw, 104px); height: clamp(70px, 19vw, 104px); }
     #mist { top: calc(50px + var(--st)); left: calc(10px + var(--sl)); transform: none; }
     #modchip { top: calc(90px + var(--st)); left: calc(10px + var(--sl)); transform: none; }
     #feed { top: calc(130px + var(--st)); max-width: 62vw; }
@@ -141,15 +157,37 @@
 <div class="overlay on" id="menu">
   <h1><span>P</span><span>I</span><span>S</span><span>S</span> <span>G</span><span>N</span><span>O</span><span>M</span><span>E</span><span>S</span></h1>
   <div class="sub">LAST GNOME STANDING</div>
-  <p>Ten gnomes. One big cheerful forest. Pee is your only weapon, and the mist is closing in.</p>
-  <div class="rules">
-    <div><b>&#128694;</b>Left thumb<br>walks</div>
-    <div><b>&#128166;</b>Right thumb<br>looks, hold PEE</div>
-    <div><b>&#127796;</b>Be the last<br>gnome standing</div>
-  </div>
+  <p>Ten gnomes. One big cheerful mushroom forest. Pee is your only weapon, and the mist is closing in.</p>
   <button class="big" id="btnPlay">PLAY</button>
-  <p class="long">Grab glowing potions for chili, ice or acid pee. Health creeps back when you stay dry, but random modes (disco, goth, bogan) change the rules. The world only goes psychedelic when you are badly hurt. Beetles wander the forest and fart out bonuses: speed, health, bounce and a big gulp. Sounds are placed in 3D, so wear headphones. A tall metalhead called Nathaniel wanders the forest: touch him (gold diamond on the map) for Wizard Mode. Look up to throw your stream further: the glowing ring shows where it lands. Your bladder empties as you pee and refills when you stop. Trees block your stream.</p>
-  <p class="keys">Computer: WASD to walk, mouse to look (click to capture it), hold click or F to pee, Space to jump.</p>
+  <p class="more">&#9660; scroll for how to play &#9660;</p>
+
+  <div class="howto">
+    <h2>HOW TO PLAY</h2>
+    <div class="cards">
+      <div class="card"><h3>THE GOAL</h3>
+        <ul><li>Be the <b>last gnome standing</b> out of 10.</li><li>Pee is your only weapon. Each hit takes health.</li><li>Health creeps back after 4 quiet seconds, but not while you are burning or melting.</li></ul></div>
+      <div class="card"><h3>ON A PHONE OR TABLET</h3>
+        <ul><li><b>Left side:</b> drag to <b>walk</b>. <b>JUMP</b> is the blue button.</li><li><b>Right side:</b> drag anywhere to <b>look</b>.</li><li>Hold the yellow <b>PEE</b> button to pee. Slide your thumb on it to aim while you pee.</li></ul></div>
+      <div class="card"><h3>ON A COMPUTER</h3>
+        <ul><li><b>WASD</b> walk, <b>mouse</b> look (click the game to capture it).</li><li>Hold <b>click</b> or <b>F</b> to pee, <b>Space</b> to jump.</li><li><b>Esc</b> pauses.</li></ul></div>
+      <div class="card"><h3>AIMING</h3>
+        <ul><li>Look <b>up</b> to throw your stream farther. The glowing ring on the ground is where it lands.</li><li>Mushroom stems block it. Bladder empties as you pee and refills when you stop.</li></ul></div>
+      <div class="card"><h3>POTIONS</h3>
+        <ul><li>Walk into a glowing bottle for 25 seconds of:</li>
+        <li><span class="chip" style="background:#ff5a14">CHILI</span> sets them on fire</li>
+        <li><span class="chip" style="background:#3ab8e8">ICE</span> slows, then freezes them</li>
+        <li><span class="chip" style="background:#4ab81a">ACID</span> melts them and they take extra damage</li></ul></div>
+      <div class="card"><h3>FARTING BEETLES</h3>
+        <ul><li>Big blocky beetles wander about and fart out a bonus. Grab it before it vanishes (16 s):</li>
+        <li><span class="chip" style="background:#19b8e0">SPEED</span> <span class="chip" style="background:#ff4a6a">HEALTH</span> <span class="chip" style="background:#e02bb0">BOUNCE</span> <span class="chip" style="background:#e0a800">BIG GULP</span></li></ul></div>
+      <div class="card"><h3>NATHANIEL</h3>
+        <ul><li>The tall metalhead in glasses (a <b>gold diamond</b> on the map). <b>Touch him</b> and he gives you <b>Wizard Mode</b>: 20 seconds where nothing can hurt you.</li></ul></div>
+      <div class="card"><h3>THE MIST AND THE MODES</h3>
+        <ul><li>A pink mist closes in. Stay inside the circle on the minimap.</li><li>Random modes change the rules: <b>Disco</b> (faster, stronger streams), <b>Goth</b> (dark, no healing), <b>Bogan</b> (big bladder, drunk aim).</li></ul></div>
+      <div class="card"><h3>GOOD TO KNOW</h3>
+        <ul><li>Colourful dots on the minimap are bonuses. White is you.</li><li>The world only goes psychedelic when you are badly hurt.</li><li>Wear headphones: every sound comes from where it happens.</li></ul></div>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="over">
