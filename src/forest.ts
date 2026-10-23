@@ -79,8 +79,8 @@ function makeSign(text: string, color: string): THREE.Sprite {
   ctx.shadowBlur = 16;
   ctx.stroke();
   let size = 58;
-  ctx.font = `bold ${size}px "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif`;
-  while (ctx.measureText(text).width > 440 && size > 24) { size -= 2; ctx.font = `bold ${size}px "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif`; }
+  ctx.font = `bold ${size}px Audiowide, "Segoe UI", sans-serif`;
+  while (ctx.measureText(text).width > 440 && size > 24) { size -= 2; ctx.font = `bold ${size}px Audiowide, "Segoe UI", sans-serif`; }
   ctx.fillStyle = '#f4f0ff';
   ctx.shadowColor = color;
   ctx.shadowBlur = 12;
@@ -90,6 +90,7 @@ function makeSign(text: string, color: string): THREE.Sprite {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, fog: false, transparent: true, depthWrite: false }));
+  sprite.userData = { text, color };
   sprite.scale.set(20, 5, 1);
   sprite.renderOrder = 4;
   return sprite;
@@ -107,6 +108,7 @@ export class Forest {
   private readonly nx: number;
   private grid: Solid[][];
   private waterTex: THREE.CanvasTexture | null = null;
+  private signs: THREE.Sprite[] = [];
   private flies: THREE.InstancedMesh;
   private flyBase: { x: number; y: number; z: number; p: number }[] = [];
 
@@ -316,7 +318,17 @@ export class Forest {
       const sign = makeSign(p.name, i % 2 ? '#2af0ff' : '#ff3ad8');
       sign.position.set(p.x, Math.max(heightAt(p.x, p.z), SEA) + (p.kind === 'peak' ? 12 : 17), p.z);
       this.group.add(sign);
+      this.signs.push(sign);
     });
+  }
+
+  /** Draw the name signs again (the neon font may not have been ready the first time). */
+  refreshSigns() {
+    for (const sp of this.signs) {
+      const fresh = makeSign(sp.userData.text as string, sp.userData.color as string);
+      (sp.material as THREE.SpriteMaterial).map?.dispose();
+      (sp.material as THREE.SpriteMaterial).map = (fresh.material as THREE.SpriteMaterial).map;
+    }
   }
 
   /** The built places: a village, a depot, a farm, standing stones, a mountain-top pavilion and so on. */

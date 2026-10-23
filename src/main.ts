@@ -112,6 +112,7 @@ fit();
 
 const banter = new Banter($('bubbles'), $('chatter'), player);
 const nathaniel = new Nathaniel(scene);
+document.fonts?.load('20px Audiowide').then(() => forest.refreshSigns()).catch(() => {});
 const NATHANIEL_POS = new THREE.Vector3();
 bugs.onFart = (x, z) => {
   sfx.fartAt({ x, y: 0.7, z });
@@ -160,19 +161,19 @@ function drawMinimap() {
   const px = (x: number) => (x + HALF + 3) * k;
   mapCtx.clearRect(0, 0, S, S);
   mapCtx.drawImage(terrainImg, 0, 0, S, S);
-  mapCtx.strokeStyle = 'rgba(255,255,255,.9)';
+  mapCtx.strokeStyle = 'rgba(25,240,255,.8)';
   mapCtx.strokeRect(px(-HALF), px(-HALF), 2 * HALF * k, 2 * HALF * k);
   // safe circle
   mapCtx.save();
   mapCtx.beginPath();
   mapCtx.rect(0, 0, S, S);
   mapCtx.arc(px(0), px(0), arena.ringR * k, 0, Math.PI * 2, true);
-  mapCtx.fillStyle = 'rgba(255,90,165,.45)';
+  mapCtx.fillStyle = 'rgba(255,43,214,.35)';
   mapCtx.fill('evenodd');
   mapCtx.restore();
   mapCtx.beginPath();
   mapCtx.arc(px(0), px(0), arena.ringR * k, 0, Math.PI * 2);
-  mapCtx.strokeStyle = '#ff3a8a';
+  mapCtx.strokeStyle = '#ff2bd6';
   mapCtx.lineWidth = 1.5;
   mapCtx.stroke();
   mapCtx.lineWidth = 1;
@@ -356,6 +357,13 @@ function drawBigMap(spawnSel?: { x: number; z: number }) {
   const k = S / (2 * HALF + 6);
   const px = (v: number) => (v + HALF + 3) * k;
   ctx.drawImage(terrainImg, 0, 0, S, S);
+  // a faint tactical grid every 30 units
+  ctx.strokeStyle = 'rgba(25,240,255,.16)';
+  ctx.lineWidth = 1;
+  for (let v = -HALF; v <= HALF; v += 30) {
+    ctx.beginPath(); ctx.moveTo(px(v), 0); ctx.lineTo(px(v), S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, px(v)); ctx.lineTo(S, px(v)); ctx.stroke();
+  }
   // the safe circle
   if (!spawnSel) {
     ctx.save();
@@ -375,49 +383,63 @@ function drawBigMap(spawnSel?: { x: number; z: number }) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const fs = Math.max(11, Math.round(S / 38));
-  ctx.font = `bold ${fs}px "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif`;
-  for (const p of POIS) {
+  ctx.font = `${fs}px Audiowide, "Segoe UI", sans-serif`;
+  POIS.forEach((p, i) => {
+    const neon = i % 2 ? '#19f0ff' : '#ff2bd6';
     const x = px(p.x);
     const y = px(p.z);
+    ctx.save();
+    ctx.shadowColor = neon;
+    ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.arc(x, y, fs * 0.38, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
+    ctx.arc(x, y, fs * 0.36, 0, Math.PI * 2);
+    ctx.fillStyle = neon;
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#000';
-    ctx.stroke();
-    ctx.lineWidth = fs * 0.3;
-    ctx.strokeStyle = '#0a0608';
+    ctx.restore();
+    ctx.lineWidth = fs * 0.34;
+    ctx.strokeStyle = 'rgba(4,2,10,.9)';
     ctx.lineJoin = 'round';
     ctx.strokeText(p.name, x, y - fs * 1.15);
-    ctx.fillStyle = '#f0e6d0';
+    ctx.save();
+    ctx.shadowColor = neon;
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#eaffff';
     ctx.fillText(p.name, x, y - fs * 1.15);
-  }
+    ctx.restore();
+  });
   if (spawnSel) {
     // where you are about to land: a pulsing red ring
     const sx = px(spawnSel.x);
     const sy = px(spawnSel.z);
     const pulse = 1 + 0.15 * Math.sin(performance.now() / 180);
+    ctx.save();
+    ctx.shadowColor = '#fcee0a';
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = '#fcee0a';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(sx, sy, fs * 1.1 * pulse, 0, Math.PI * 2);
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#c0282d';
     ctx.stroke();
+    // crosshair ticks
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      ctx.beginPath();
+      ctx.moveTo(sx + dx * fs * 1.5, sy + dz * fs * 1.5);
+      ctx.lineTo(sx + dx * fs * 2.3, sy + dz * fs * 2.3);
+      ctx.stroke();
+    }
     ctx.beginPath();
-    ctx.arc(sx, sy, fs * 0.35, 0, Math.PI * 2);
-    ctx.fillStyle = '#c0282d';
+    ctx.arc(sx, sy, fs * 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fcee0a';
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#fff';
-    ctx.stroke();
+    ctx.restore();
     return;
   }
   // Nathaniel, and you
   ctx.save();
   ctx.translate(px(nathaniel.pos.x), px(nathaniel.pos.z));
   ctx.rotate(Math.PI / 4);
-  ctx.fillStyle = '#ffe066';
-  ctx.strokeStyle = '#4a2a78';
+  ctx.fillStyle = '#fcee0a';
+  ctx.strokeStyle = '#000';
   ctx.lineWidth = 2;
   ctx.fillRect(-fs * 0.4, -fs * 0.4, fs * 0.8, fs * 0.8);
   ctx.strokeRect(-fs * 0.4, -fs * 0.4, fs * 0.8, fs * 0.8);
@@ -432,9 +454,11 @@ function drawBigMap(spawnSel?: { x: number; z: number }) {
     ctx.lineTo(0, fs * 0.25);
     ctx.lineTo(-fs * 0.6, fs * 0.6);
     ctx.closePath();
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#4a2a78';
-    ctx.lineWidth = 3;
+    ctx.fillStyle = '#19f0ff';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#19f0ff';
+    ctx.shadowBlur = 10;
     ctx.fill();
     ctx.stroke();
     ctx.restore();

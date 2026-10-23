@@ -87,3 +87,7 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   and the post pass adds a 10% cyberpunk grade: teal shadows, magenta highlights, a little glow, scanlines on the low-res pixel rows and a hint of chromatic
   split. Some lanterns glow cyan or magenta, the place names are neon signs, and the depot, the fountain, the Peak pavilion and the standing stones have neon strips.
   It all happens in the low-res picture, so the pixel look stays.
+- **Full cyberpunk interface:** every menu, control and HUD element is now neon-on-black: Monoton and Audiowide type, a menu with a magenta sun over a dark
+  skyline and a neon grid, glass panels with cyan/magenta/yellow corner brackets, chamfered yellow and cyan buttons, a cyan joystick with a dashed magenta inner ring and a
+  glowing knob, octagonal PEE and JUMP buttons, a reticle crosshair, segmented health and bladder bars, a minimap with a radar sweep, terminal-style
+  speech bubbles and kill feed (`> ...`), a glitching banner, a faint scan-line sheet, and tactical-grid maps with neon labels and a targeting reticle for your spawn.
