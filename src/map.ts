@@ -184,24 +184,24 @@ export function landNear(x: number, z: number, minH = 0.6): { x: number; z: numb
 /** A colour for the ground, as [r, g, b] 0..1: sand by the water, grass, bare rock up high, snow on the tops. */
 export function groundColor(x: number, z: number, h: number, out: [number, number, number]) {
   const n = fbm(x * 0.12, z * 0.12) + 0.5; // 0..1 patchiness
-  let r = 0.42 + n * 0.1, g = 0.86 - n * 0.14, b = 0.3 + n * 0.08; // candy grass
+  let r = 0.15 + n * 0.07, g = 0.27 - n * 0.06, b = 0.15 + n * 0.05; // mossy night grass
   // soil and crops
   const farm = Math.hypot(x - 6, z - 50);
   if (farm < 15) {
     const row = 0.5 + 0.5 * Math.sin(z * 1.3);
-    r = 0.55 + row * 0.12; g = 0.36 + row * 0.1; b = 0.2;
+    r = 0.26 + row * 0.07; g = 0.18 + row * 0.05; b = 0.12;
   }
   // the swamp
   const swamp = Math.hypot(x + 6, z + 50);
-  if (swamp < 16) { const w = 1 - smooth(8, 16, swamp); r += (0.5 - r) * w; g += (0.62 - g) * w * 0.6; b += (0.18 - b) * w; }
-  // sand around the water, rock and snow up high
-  if (h < 0.7) { const w = smooth(0.7, -0.3, h); r += (0.96 - r) * w; g += (0.88 - g) * w; b += (0.62 - b) * w; }
-  if (h < SEA) { const w = smooth(SEA, -2.5, h); r += (0.36 - r) * w; g += (0.58 - g) * w; b += (0.7 - b) * w; } // the sea bed
-  if (h > 7) { const w = smooth(7, 10.5, h); r += (0.78 - r) * w; g += (0.72 - g) * w; b += (0.84 - b) * w; }
-  if (h > 13) { const w = smooth(13, 15, h); r += (0.98 - r) * w; g += (0.98 - g) * w; b += (1.0 - b) * w; }
-  // the glacier is ice
+  if (swamp < 16) { const w = 1 - smooth(8, 16, swamp); r += (0.14 - r) * w; g += (0.24 - g) * w * 0.6; b += (0.1 - b) * w; }
+  // muddy sand by the water, bare rock and snow up high
+  if (h < 0.7) { const w = smooth(0.7, -0.3, h); r += (0.42 - r) * w; g += (0.36 - g) * w; b += (0.26 - b) * w; }
+  if (h < SEA) { const w = smooth(SEA, -2.5, h); r += (0.08 - r) * w; g += (0.16 - g) * w; b += (0.2 - b) * w; } // the sea bed
+  if (h > 7) { const w = smooth(7, 10.5, h); r += (0.3 - r) * w; g += (0.3 - g) * w; b += (0.34 - b) * w; }
+  if (h > 13) { const w = smooth(13, 15, h); r += (0.66 - r) * w; g += (0.68 - g) * w; b += (0.74 - b) * w; }
+  // the glacier is dull ice
   const ice = Math.hypot(x + 62, z + 6);
-  if (ice < 17 && h > 1.5) { const w = (1 - smooth(8, 17, ice)) * smooth(1.5, 4, h); r += (0.78 - r) * w; g += (0.95 - g) * w; b += (1.0 - b) * w; }
+  if (ice < 17 && h > 1.5) { const w = (1 - smooth(8, 17, ice)) * smooth(1.5, 4, h); r += (0.46 - r) * w; g += (0.58 - g) * w; b += (0.66 - b) * w; }
   out[0] = r; out[1] = g; out[2] = b;
 }
 
@@ -221,7 +221,7 @@ export function renderTerrainImage(size: number, half: number): HTMLCanvasElemen
       let r: number, g: number, b: number;
       if (h < SEA) {
         const d = smooth(0, 3, SEA - h);
-        r = 0.36 - 0.2 * d; g = 0.8 - 0.28 * d; b = 1.0 - 0.18 * d;
+        r = 0.1 - 0.06 * d; g = 0.24 - 0.12 * d; b = 0.32 - 0.14 * d;
       } else {
         groundColor(x, z, h, col);
         // a little hill-shading so the hills read as hills

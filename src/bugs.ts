@@ -18,7 +18,7 @@ const BONUS_LIFE = 16;
 const GRAB = 1.5;
 const PUFFS = 36;
 
-const SHELLS = [0x2f9a5a, 0xd8742a, 0x7a4fb0, 0x2a8ad0, 0xc03a5a, 0x9ab02a];
+const SHELLS = [0x3a5a3a, 0x6a3a2a, 0x4a3a6a, 0x2a4a6a, 0x7a2a3a, 0x6a7a2a];
 
 interface Bug {
   root: THREE.Group;

@@ -79,3 +79,8 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   glider umbrella opens near the ground (tap **GLIDE** to open it earlier). Bots pick a named place and jump when the plane gets close
   enough. Nobody can pee in the air, and you are safe for 3 seconds after landing. Anybody still aboard is pushed out at the end of the line.
   The mist and the random modes start only once the plane has gone.
+- **Tenchu: Stealth Assassins look:** the game is now a moonlit, foggy, 1998-console world. It renders at about 360 lines and is scaled up with hard
+  pixels, vertex positions snap to a coarse grid so edges shimmer, colour is quantised to 15-bit with an ordered dither, and textures are nearest-filtered.
+  The island is dark moss, mud and grey rock under a night sky with a pale moon; mushrooms have dull earthy caps; the buildings are
+  weathered wood with black roofs, and warm stone lanterns glow around the places. The interface is ink, parchment and blood red (rice-paper speech bubbles,
+  a red-sun title screen with the character for shinobi, serif type). The lens flare and outline are off in this look.

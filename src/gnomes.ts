@@ -108,7 +108,7 @@ function makeLite(shirt: number, hat: number) {
   return { root, legL, legR, mat };
 }
 
-const SHIRTS = [0x3a8aff, 0x2ad06a, 0x3ad0ff, 0xffb02a, 0xff7a3a, 0xa070ff];
+const SHIRTS = [0x3a4a6a, 0x3a5a3a, 0x5a3a3a, 0x6a5a3a, 0x4a3a5a, 0x2a4a5a];
 
 function angleDiff(a: number, b: number): number {
   let d = b - a;

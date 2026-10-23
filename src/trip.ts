@@ -46,14 +46,15 @@ void main() {
   float star = step(0.985, h) * (0.5 + 0.5 * sin(time * 3.0 + h * 50.0));
   col += star * smoothstep(0.05, 0.4, d.y);
   // the calm night sky you start with: the swirl only comes in as you get hurt
-  vec3 calm = mix(vec3(0.86, 0.93, 1.0), vec3(0.28, 0.66, 1.0), smoothstep(-0.05, 0.8, d.y));
+  // a dark, cold night with a pale moon, thin cloud and a few stars
+  vec3 calm = mix(vec3(0.075, 0.095, 0.15), vec3(0.012, 0.018, 0.045), smoothstep(-0.05, 0.8, d.y));
   vec3 sn = normalize(vec3(0.35, 0.55, -0.75));
   float sdd = acos(clamp(dot(d, sn), -1.0, 1.0));
-  calm += vec3(1.0, 0.95, 0.55) * smoothstep(0.13, 0.11, sdd) + vec3(1.0, 0.92, 0.6) * smoothstep(0.55, 0.1, sdd) * 0.22;
-  // fat low-poly clouds drifting by
-  float cl = 0.5 + 0.5 * sin(d.x * 5.0 + time * 0.04 + sin(d.z * 4.0) * 1.6) * sin(d.z * 6.0 - time * 0.03 + sin(d.x * 3.0)) + d.y * 0.5;
-  cl = smoothstep(0.62, 0.8, cl) * smoothstep(0.05, 0.3, d.y) * smoothstep(0.98, 0.6, d.y);
-  calm = mix(calm, vec3(1.0), cl * 0.9);
+  calm += vec3(0.85, 0.9, 1.0) * smoothstep(0.075, 0.065, sdd) + vec3(0.3, 0.4, 0.62) * smoothstep(0.55, 0.06, sdd) * 0.2;
+  float cl = 0.5 + 0.5 * sin(d.x * 5.0 + time * 0.03 + sin(d.z * 4.0) * 1.6) * sin(d.z * 6.0 - time * 0.02 + sin(d.x * 3.0)) + d.y * 0.5;
+  cl = smoothstep(0.6, 0.85, cl) * smoothstep(0.05, 0.3, d.y) * smoothstep(0.98, 0.6, d.y);
+  calm = mix(calm, vec3(0.13, 0.15, 0.22), cl * 0.65);
+  calm += step(0.992, hash(floor(d * 90.0))) * 0.55 * smoothstep(0.12, 0.5, d.y);
   col = mix(calm, col, psy);
   if (modeAmt > 0.001) {
     vec3 mc = col;
@@ -208,6 +209,9 @@ void main() {
   if (outlineAmt > 0.001) col = mix(col, vec3(0.04, 0.015, 0.1), inkEdge(uv) * 0.5 * outlineAmt);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
+  // PlayStation-style 15-bit colour with a fine ordered dither, in the low-res pixels
+  float dither = fract(52.9829189 * fract(dot(floor(gl_FragCoord.xy), vec2(0.06711056, 0.00583715))));
+  gl_FragColor.rgb = floor(gl_FragColor.rgb * 31.0 + dither) / 31.0;
 }`;
 
 /** The psychedelic layer: swirling sky, drifting spores, and a warping colour-shifting post effect. */
@@ -230,7 +234,7 @@ export class Trip {
     tDepth: { value: null as THREE.Texture | null },
     cnear: { value: 0.1 },
     cfar: { value: 160 },
-    outlineAmt: { value: 1 },
+    outlineAmt: { value: 0 },
   };
   /** Camera planes, for turning depth back into distance. */
   setPlanes(near: number, far: number) {
@@ -313,7 +317,7 @@ export class Trip {
   /** Match the fog to the horizon colour of the sky so distance fades into the swirl. */
   horizon(t: number, out: THREE.Color): THREE.Color {
     palette(t * 0.03, out).multiplyScalar(0.22);
-    out.lerp(this.tmpC.setRGB(0.86, 0.93, 1.0), 1 - this.psy); // calm: the pale blue horizon of a sunny sky
+    out.lerp(this.tmpC.setRGB(0.05, 0.065, 0.1), 1 - this.psy); // calm: a dark misty night
     if (this.modeAmt > 0.001) {
       const m = this.mode < 1.5 ? palette(t * 0.12, this.tmpC).multiplyScalar(0.45) : this.mode < 2.5 ? this.tmpC.setRGB(0.04, 0.0, 0.03) : this.mode < 3.5 ? this.tmpC.setRGB(0.55, 0.28, 0.1) : this.mode < 4.5 ? this.tmpC.setRGB(0.45, 0.2, 0.5) : this.mode < 5.5 ? this.tmpC.setRGB(0.02, 0.02, 0.06) : this.tmpC.setRGB(0.8, 0.93, 1.0);
       out.lerp(m, this.modeAmt);

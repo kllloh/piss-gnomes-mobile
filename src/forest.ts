@@ -70,15 +70,15 @@ function makeSign(text: string, color: string): THREE.Sprite {
   ctx.arcTo(8, 120, 8, 8, r);
   ctx.arcTo(8, 8, 504, 8, r);
   ctx.closePath();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#d8ccae';
   ctx.fill();
   ctx.lineWidth = 12;
   ctx.strokeStyle = color;
   ctx.stroke();
   let size = 58;
-  ctx.font = `bold ${size}px "Arial Rounded MT Bold", "Trebuchet MS", sans-serif`;
-  while (ctx.measureText(text).width > 440 && size > 24) { size -= 2; ctx.font = `bold ${size}px "Arial Rounded MT Bold", "Trebuchet MS", sans-serif`; }
-  ctx.fillStyle = color;
+  ctx.font = `bold ${size}px "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif`;
+  while (ctx.measureText(text).width > 440 && size > 24) { size -= 2; ctx.font = `bold ${size}px "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif`; }
+  ctx.fillStyle = '#1a1214';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 256, 68);
@@ -153,7 +153,7 @@ export class Forest {
     }
     tg.setAttribute('color', new THREE.BufferAttribute(tcol, 3));
     tg.computeVertexNormals();
-    const gtex = makePaintTexture(228, 32, true); // soft, filtered grain rather than chunky pixels
+    const gtex = makePaintTexture(150, 32); // chunky low-res texture, PlayStation style
     gtex.repeat.set(75, 75);
     this.group.add(new THREE.Mesh(tg, lit({ vertexColors: true, map: gtex })));
 
@@ -161,12 +161,12 @@ export class Forest {
     const rip = makePaintTexture(205, 32, true);
     rip.repeat.set(150, 150);
     this.waterTex = rip;
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), lit({ color: 0x48c4ff, map: rip, transparent: true, opacity: 0.8, depthWrite: false }));
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), lit({ color: 0x20475a, map: rip, transparent: true, opacity: 0.86, depthWrite: false }));
     water.position.y = SEA;
     water.renderOrder = 1;
     this.group.add(water);
     for (const p of ACID_POOLS) {
-      const pool = new THREE.Mesh(new THREE.CylinderGeometry(p.r, p.r, 0.05, 28), new THREE.MeshBasicMaterial({ color: 0x8aff2a, transparent: true, opacity: 0.88, depthWrite: false }));
+      const pool = new THREE.Mesh(new THREE.CylinderGeometry(p.r, p.r, 0.05, 28), new THREE.MeshBasicMaterial({ color: 0x4a7a1a, transparent: true, opacity: 0.9, depthWrite: false }));
       pool.position.set(p.x, SEA + 0.06, p.z);
       pool.renderOrder = 2;
       this.group.add(pool);
@@ -174,11 +174,11 @@ export class Forest {
 
     // flowers and soft patches on the grass
     const patchCount = 130;
-    const patches = instanced(new THREE.CylinderGeometry(0.5, 0.5, 0.03, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }), patchCount);
+    const patches = instanced(new THREE.CylinderGeometry(0.5, 0.5, 0.03, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }), patchCount);
     for (let i = 0; i < patchCount; i++) {
       let x = 0, z = 0;
       for (let a = 0; a < 12; a++) { x = between(-HALF + 6, HALF - 6); z = between(-HALF + 6, HALF - 6); if (dry(x, z, 0.9)) break; }
-      put(patches, i, x, heightAt(x, z) + 0.06, z, between(2.5, 8), 1, between(2.5, 8), rnd() * 3, pick([0xffffff, 0xffe066, 0xff9ad0, 0x9ae0ff]));
+      put(patches, i, x, heightAt(x, z) + 0.06, z, between(2.5, 8), 1, between(2.5, 8), rnd() * 3, pick([0x3a4a2a, 0x4a3a2a, 0x2a3a4a, 0x4a4a3a]));
     }
     this.group.add(patches);
 
@@ -193,7 +193,7 @@ export class Forest {
         h: big ? between(6.5, 8.2) : between(3.7, 5.2),
         w: big ? between(1.5, 1.9) : between(0.8, 1.1),
         s: big ? between(1.35, 1.6) : between(0.85, 1.15),
-        col: pick([0xff4a6a, 0xffb02a, 0x6a8aff, 0xb06aff, 0xff7ab8, 0x3ad0a0, 0xffd34a]),
+        col: pick([0x7a2a2a, 0x5a4020, 0x2a4a3a, 0x3a3a5a, 0x5a2a4a, 0x6a5a28, 0x2a5a5a]),
       });
       placed.push({ x, z });
     };
@@ -214,25 +214,25 @@ export class Forest {
       addShroom(x, z, rnd() < 0.1);
     }
     const n = shrooms.length;
-    const mStems = instanced(new THREE.CylinderGeometry(0.42, 0.5, 1, 8), lit({ color: 0xffffff, emissive: 0x4a4030 }), n);
+    const mStems = instanced(new THREE.CylinderGeometry(0.42, 0.5, 1, 8), lit({ color: 0xffffff, emissive: 0x181410 }), n);
     const mCaps = instanced(new THREE.SphereGeometry(0.5, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), lit({ color: 0xffffff, flatShading: true }), n);
     const mGills = instanced(new THREE.CircleGeometry(0.5, 12).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }), n);
     const SPOTS = 5;
     const mSpots = instanced(new THREE.SphereGeometry(0.5, 6, 4), lit({ color: 0xffffff, flatShading: true }), n * SPOTS);
     shrooms.forEach((m, i) => {
-      put(mStems, i, m.x, m.gy + m.h / 2, m.z, m.w, m.h, m.w, 0, pick([0xfff0d8, 0xffe4ec, 0xf6f0c8]));
+      put(mStems, i, m.x, m.gy + m.h / 2, m.z, m.w, m.h, m.w, 0, pick([0x9a9080, 0x8a8478, 0xa09484]));
       const capW = 4.6 * m.s;
       const capH = 1.9 * m.s;
       const base = m.gy + m.h - 0.15;
       this.capList.push({ x: m.x, z: m.z, base, r: capW / 2, h: capH });
       put(mCaps, i, m.x, base, m.z, capW, capH * 2, capW, rnd() * 3, m.col); // the hemisphere has radius 0.5, so scaling y by 2h gives height h
-      put(mGills, i, m.x, base + 0.02, m.z, capW, 1, capW, 0, 0xffe8c8);
+      put(mGills, i, m.x, base + 0.02, m.z, capW, 1, capW, 0, 0x4a3e34);
       for (let k = 0; k < SPOTS; k++) {
         const ang = rnd() * Math.PI * 2 + k;
         const r = (0.25 + rnd() * 0.55) * (capW / 2);
         const yy = base + capH * Math.sqrt(Math.max(0, 1 - (r / (capW / 2)) ** 2)) - 0.05;
         const sp = (0.35 + rnd() * 0.3) * m.s;
-        put(mSpots, i * SPOTS + k, m.x + Math.cos(ang) * r, yy, m.z + Math.sin(ang) * r, sp, sp * 0.4, sp, 0, 0xfffdf0);
+        put(mSpots, i * SPOTS + k, m.x + Math.cos(ang) * r, yy, m.z + Math.sin(ang) * r, sp, sp * 0.4, sp, 0, 0xb8b09a);
       }
       this.addCircle(m.x, m.z, m.w * 0.5 + 0.1, m.gy + m.h);
     });
@@ -250,7 +250,7 @@ export class Forest {
     const rocks = instanced(new THREE.IcosahedronGeometry(0.6, 0), lit({ color: 0xffffff, flatShading: true }), rockList.length);
     rockList.forEach((r, i) => {
       const gy = heightAt(r.x, r.z);
-      put(rocks, i, r.x, gy + r.h / 2.4, r.z, r.w, r.h, r.w, rnd() * 3, pick([0xc4ccdc, 0xaab6cc, 0xd4dcec]));
+      put(rocks, i, r.x, gy + r.h / 2.4, r.z, r.w, r.h, r.w, rnd() * 3, pick([0x5a5e68, 0x4a4e58, 0x6a6e78]));
       this.addCircle(r.x, r.z, r.w * 0.5, gy + r.h * 0.9);
     });
     this.group.add(rocks);
@@ -267,14 +267,14 @@ export class Forest {
     const logs = instanced(new SoftBox(1, 1, 1), lit({ color: 0xffffff }), logList.length);
     logList.forEach((l, i) => {
       const gy = heightAt(l.x, l.z);
-      put(logs, i, l.x, gy + 0.5, l.z, l.w, 1, l.d, 0, pick([0xc9824a, 0xd89a5a]));
+      put(logs, i, l.x, gy + 0.5, l.z, l.w, 1, l.d, 0, pick([0x4a3020, 0x5a3a28]));
       this.addRect(l.x - l.w / 2, l.z - l.d / 2, l.x + l.w / 2, l.z + l.d / 2, gy + 1);
     });
     this.group.add(logs);
 
     // --- glowing little mushrooms (decor) --------------------------------------------------
     const smallN = 460;
-    const stems = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 6), lit({ color: 0xf2e8d0 }), smallN);
+    const stems = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 6), lit({ color: 0x6a6458 }), smallN);
     const caps = instanced(new THREE.ConeGeometry(0.62, 1, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), smallN);
     for (let i = 0; i < smallN; i++) {
       let x = 0, z = 0;
@@ -282,12 +282,12 @@ export class Forest {
       const gy = heightAt(x, z);
       const s = between(0.7, 1.5);
       put(stems, i, x, gy + 0.3 * s, z, 0.25 * s, 0.6 * s, 0.25 * s);
-      put(caps, i, x, gy + 0.7 * s, z, 1.0 * s, 0.4 * s, 1.0 * s, rnd() * 3, pick([0xff66b0, 0x66e6ff, 0xffe45a, 0xb08aff, 0x7aff7a]));
+      put(caps, i, x, gy + 0.7 * s, z, 1.0 * s, 0.4 * s, 1.0 * s, rnd() * 3, pick([0xa04a6a, 0x4a9a9a, 0xa09a4a, 0x7a5aa0]));
     }
     this.group.add(stems, caps);
 
     // lily pads on the ponds
-    const lilies = instanced(new SoftBox(1, 0.05, 1), new THREE.MeshBasicMaterial({ color: 0x4acf6a }), 36);
+    const lilies = instanced(new SoftBox(1, 0.05, 1), new THREE.MeshBasicMaterial({ color: 0x2a5a32 }), 36);
     for (let i = 0; i < 36; i++) {
       const pond = i < 18 ? { x: -50, z: 52 } : { x: -42, z: -34 };
       put(lilies, i, pond.x + between(-7, 7), SEA + 0.1, pond.z + between(-7, 7), between(1.1, 1.8), 1, between(1.1, 1.8), rnd() * 3);
@@ -298,7 +298,7 @@ export class Forest {
 
     // --- fireflies ------------------------------------------------------------------------------
     const flyN = 200;
-    this.flies = instanced(new SoftBox(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xf6ff8a }), flyN);
+    this.flies = instanced(new SoftBox(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xc8d870 }), flyN);
     for (let i = 0; i < flyN; i++) {
       const x = between(-HALF, HALF);
       const z = between(-HALF, HALF);
@@ -350,21 +350,21 @@ export class Forest {
     // Tinkle Town: a ring of pastel mushroom-houses round a fountain
     {
       const cx = 42, cz = 22;
-      const colors = [0xffb0d0, 0xb0e0ff, 0xfff0a0, 0xc0f0b0, 0xe0c0ff, 0xffd0a0, 0xa0f0e0, 0xffc0c0];
+      const colors = [0x8a7e68, 0x7a7060, 0x9a8c70, 0x6a6050, 0x8a806c, 0x76705e, 0x948a74, 0x6e665a];
       for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2 + 0.2;
         const x = cx + Math.cos(a) * 10.5;
         const z = cz + Math.sin(a) * 10.5;
         const h = 3.4 + (k % 3) * 0.7;
         const top = block(x, z, 5.2, 5.2, h, colors[k]);
-        roof(x, z, top, 4.4, 2.8, [0xff4a6a, 0x6a8aff, 0xffb02a, 0xb06aff][k % 4]);
+        roof(x, z, top, 4.4, 2.8, [0x2a2a30, 0x3a2a2a, 0x2a303a, 0x6a2424][k % 4]);
       }
       const base = heightAt(cx, cz);
-      const fountain = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.8, 0.9, 16), mat(0xe8ecfa));
+      const fountain = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.8, 0.9, 16), mat(0x6a6e78));
       fountain.position.set(cx, base + 0.45, cz);
-      const water = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.1, 16), new THREE.MeshBasicMaterial({ color: 0x5ac8ff }));
+      const water = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.1, 16), new THREE.MeshBasicMaterial({ color: 0x2a5a70 }));
       water.position.set(cx, base + 0.92, cz);
-      const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 2.6, 8), mat(0xe8ecfa));
+      const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 2.6, 8), mat(0x6a6e78));
       spout.position.set(cx, base + 1.9, cz);
       this.group.add(fountain, water, spout);
       this.addCircle(cx, cz, 2.9, base + 0.9);
@@ -373,13 +373,13 @@ export class Forest {
     // Gnome Depot: a big grey warehouse with an orange roof, sheds and stacked crates
     {
       const cx = -40, cz = 10;
-      const top = block(cx, cz - 4, 19, 11, 7, 0xd8dce8);
-      block(cx, cz - 4, 19.6, 11.6, 0.8, 0xff9a3a, false, 7);
+      const top = block(cx, cz - 4, 19, 11, 7, 0x4a4e58);
+      block(cx, cz - 4, 19.6, 11.6, 0.8, 0x24242a, false, 7);
       void top;
-      block(cx - 12, cz + 7, 5, 4, 3, 0xc8d0e0);
-      block(cx + 12, cz + 7, 5, 4, 3, 0xc8d0e0);
-      block(cx, cz + 10, 6, 3.4, 2.4, 0xb0b8d0);
-      const crate = [0xffc04a, 0xff7a5a, 0x7ac0ff, 0xa0e070];
+      block(cx - 12, cz + 7, 5, 4, 3, 0x3a3e48);
+      block(cx + 12, cz + 7, 5, 4, 3, 0x3a3e48);
+      block(cx, cz + 10, 6, 3.4, 2.4, 0x32363e);
+      const crate = [0x6a4a2a, 0x5a3a22, 0x7a5a30, 0x4a3a22];
       for (let i = 0; i < 12; i++) {
         const a = rnd2() * Math.PI * 2;
         const r = 7 + rnd2() * 7;
@@ -394,8 +394,8 @@ export class Forest {
     // Chili Fields: a red barn and long rows of chili plants
     {
       const cx = 6, cz = 50;
-      const top = block(cx + 8, cz - 8, 9, 7, 5, 0xe03a3a);
-      roof(cx + 8, cz - 8, top, 7, 3, 0xf6f0e0);
+      const top = block(cx + 8, cz - 8, 9, 7, 5, 0x6a2424);
+      roof(cx + 8, cz - 8, top, 7, 3, 0x24242a);
       const plants = instanced(new THREE.ConeGeometry(0.5, 1.2, 6), lit({ color: 0xffffff, flatShading: true }), 120);
       let pi = 0;
       for (let row = 0; row < 6; row++) {
@@ -403,7 +403,7 @@ export class Forest {
           const x = cx - 14 + k * 1.4;
           const z = cz - 3 + row * 3.2;
           if (Math.hypot(x - (cx + 8), z - (cz - 8)) < 6) continue;
-          put(plants, pi++, x, heightAt(x, z) + 0.6, z, 1, 1, 1, 0, (k + row) % 3 === 0 ? 0x4ac03a : 0xff3a2a);
+          put(plants, pi++, x, heightAt(x, z) + 0.6, z, 1, 1, 1, 0, (k + row) % 3 === 0 ? 0x3a5a2a : 0x7a2420);
         }
       }
       plants.count = pi;
@@ -418,13 +418,13 @@ export class Forest {
         const x = Math.cos(a) * 8;
         const z = Math.sin(a) * 8;
         const h = 3 + (k % 3) * 0.7;
-        const stone = new THREE.Mesh(new SoftBox(1.4, h, 1.4), mat(0xd4d8ee));
+        const stone = new THREE.Mesh(new SoftBox(1.4, h, 1.4), mat(0x6a6e78));
         stone.position.set(x, heightAt(x, z) + h / 2, z);
         stone.rotation.y = a;
         this.group.add(stone);
         this.addCircle(x, z, 0.8, heightAt(x, z) + h);
       }
-      const altar = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3, 0.6, 10), mat(0xe8ecfa));
+      const altar = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3, 0.6, 10), mat(0x8a8e98));
       altar.position.set(0, base + 0.3, 0);
       this.group.add(altar);
     }
@@ -432,16 +432,16 @@ export class Forest {
     // Pee-nacle Peak: a pavilion on the summit with a flag
     {
       const sx = 36, sz = -44;
-      for (const [dx, dz] of [[-3.2, -3.2], [3.2, -3.2], [-3.2, 3.2], [3.2, 3.2]]) pillar(sx + dx, sz + dz, 0.5, 4.5, 0xfff0f8);
+      for (const [dx, dz] of [[-3.2, -3.2], [3.2, -3.2], [-3.2, 3.2], [3.2, 3.2]]) pillar(sx + dx, sz + dz, 0.5, 4.5, 0x8a2424);
       const g = heightAt(sx, sz);
-      const top = new THREE.Mesh(new SoftBox(8.6, 0.7, 8.6), mat(0xff7ab8));
+      const top = new THREE.Mesh(new SoftBox(8.6, 0.7, 8.6), mat(0x24242a));
       top.position.set(sx, g + 4.85, sz);
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(6, 2.6, 4), mat(0xffd34a));
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(6, 2.6, 4), mat(0x3a2a2a));
       cap.position.set(sx, g + 6.5, sz);
       cap.rotation.y = Math.PI / 4;
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 6, 6), mat(0xe8e8e8));
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 6, 6), mat(0x8a8a90));
       pole.position.set(sx, g + 10.5, sz);
-      const flag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.8), new THREE.MeshBasicMaterial({ color: 0xff3a8a, side: THREE.DoubleSide }));
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.8), new THREE.MeshBasicMaterial({ color: 0xa8222a, side: THREE.DoubleSide }));
       flag.position.set(sx + 1.7, g + 12.6, sz);
       this.group.add(top, cap, pole, flag);
     }
@@ -449,13 +449,13 @@ export class Forest {
     // Soggy Bottom: a hut on the island in the lake
     {
       const hx = -42, hz = -40;
-      const top = block(hx, hz, 4.4, 4.4, 3, 0xe0b080);
-      roof(hx, hz, top, 3.6, 2.4, 0x4a8a4a);
+      const top = block(hx, hz, 4.4, 4.4, 3, 0x6a4a2a);
+      roof(hx, hz, top, 3.6, 2.4, 0x2a3a2a);
       for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2;
         const x = hx + Math.cos(a) * 3.4;
         const z = hz + Math.sin(a) * 3.4;
-        const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2, 5), mat(0x7ac04a));
+        const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2, 5), mat(0x4a6a32));
         reed.position.set(x, heightAt(x, z) + 1, z);
         this.group.add(reed);
       }
@@ -464,10 +464,10 @@ export class Forest {
     // Dribble Falls: a rocky ledge with a sheet of falling water
     {
       const fx = 52, fz = -26;
-      block(fx - 3, fz, 3, 6, 5, 0xb4bccc);
-      block(fx + 3, fz, 3, 6, 4, 0xaab2c4);
+      block(fx - 3, fz, 3, 6, 5, 0x5a5e68);
+      block(fx + 3, fz, 3, 6, 4, 0x50545e);
       const g = heightAt(fx, fz + 3);
-      const sheet = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 6), new THREE.MeshBasicMaterial({ color: 0x8ae0ff, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false }));
+      const sheet = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 6), new THREE.MeshBasicMaterial({ color: 0x4a7a8a, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
       sheet.position.set(fx, Math.max(g, SEA) + 3, fz + 0.5);
       this.group.add(sheet);
     }
@@ -481,27 +481,53 @@ export class Forest {
         const z = Math.sin(a) * rr;
         if (heightAt(x, z) < 0.05) continue;
         const g = heightAt(x, z);
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3, 6), mat(0xffffff));
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3, 6), mat(0x8a8478));
         pole.position.set(x, g + 1.5, z);
-        const canopy = new THREE.Mesh(new THREE.ConeGeometry(2.1, 0.9, 8), mat([0xff5a8a, 0xffd34a, 0x5ad0ff, 0x8ae04a][k % 4]));
+        const canopy = new THREE.Mesh(new THREE.ConeGeometry(2.1, 0.9, 8), mat([0x7a2a3a, 0x7a6a2a, 0x2a5a6a, 0x3a6a2a][k % 4]));
         canopy.position.set(x, g + 3.3, z);
-        const lounger = new THREE.Mesh(new SoftBox(0.9, 0.25, 2.2), mat(0xffffff));
+        const lounger = new THREE.Mesh(new SoftBox(0.9, 0.25, 2.2), mat(0x8a8478));
         lounger.position.set(x + 1.6, g + 0.2, z + 0.5);
         this.group.add(pole, canopy, lounger);
         this.addCircle(x, z, 0.3, g + 3);
       }
     }
 
+    // stone lanterns with a warm glow, round the built places
+    {
+      const spots: { x: number; z: number }[] = [];
+      for (const p of POIS) {
+        if (['lake', 'pond', 'falls', 'swamp', 'beach'].includes(p.kind)) continue;
+        const count = p.kind === 'peak' ? 4 : 6;
+        for (let k = 0; k < count; k++) {
+          const a = (k / count) * Math.PI * 2 + 0.4;
+          const rr = (p.kind === 'peak' ? 6.5 : p.r * 0.72);
+          spots.push({ x: p.x + Math.cos(a) * rr, z: p.z + Math.sin(a) * rr });
+        }
+      }
+      const posts = instanced(new THREE.CylinderGeometry(0.28, 0.34, 1.3, 6), mat(0x6a6e78), spots.length);
+      const heads = instanced(new THREE.BoxGeometry(0.8, 0.7, 0.8), new THREE.MeshBasicMaterial({ color: 0xffa040 }), spots.length);
+      const hats = instanced(new THREE.ConeGeometry(0.75, 0.55, 4), mat(0x50545e), spots.length);
+      spots.forEach((p, i) => {
+        const g = heightAt(p.x, p.z);
+        if (g < 0.2) { put(posts, i, 0, -50, 0, 0.001, 0.001, 0.001); put(heads, i, 0, -50, 0, 0.001, 0.001, 0.001); put(hats, i, 0, -50, 0, 0.001, 0.001, 0.001); return; }
+        put(posts, i, p.x, g + 0.65, p.z, 1, 1, 1);
+        put(heads, i, p.x, g + 1.65, p.z, 1, 1, 1);
+        put(hats, i, p.x, g + 2.2, p.z, 1, 1, 1, Math.PI / 4);
+        this.addCircle(p.x, p.z, 0.4, g + 2);
+      });
+      this.group.add(posts, heads, hats);
+    }
+
     // Ice Wee Glacier: crystals on the frozen hill
     {
-      const crys = instanced(new THREE.ConeGeometry(0.5, 1, 5), new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, emissive: 0x204050 }), 26);
+      const crys = instanced(new THREE.ConeGeometry(0.5, 1, 5), new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, emissive: 0x102028 }), 26);
       for (let i = 0; i < 26; i++) {
         const a = rnd2() * Math.PI * 2;
         const r = 2 + rnd2() * 10;
         const x = -62 + Math.cos(a) * r;
         const z = -6 + Math.sin(a) * r;
         const h = 2 + rnd2() * 4.5;
-        put(crys, i, x, heightAt(x, z) + h / 2 - 0.3, z, 1 + rnd2() * 0.8, h, 1 + rnd2() * 0.8, rnd2() * 3, [0xaaf0ff, 0xd8f8ff, 0x8ad8ff][i % 3]);
+        put(crys, i, x, heightAt(x, z) + h / 2 - 0.3, z, 1 + rnd2() * 0.8, h, 1 + rnd2() * 0.8, rnd2() * 3, [0x5a8a9a, 0x7aa8b8, 0x4a7a8a][i % 3]);
       }
       this.group.add(crys);
     }

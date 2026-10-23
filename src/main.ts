@@ -26,27 +26,37 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 // --- renderer, scene, camera -----------------------------------------------------------------------
 
 const canvas = $<HTMLCanvasElement>('game');
+// PlayStation-style vertex snapping: positions jump to a coarse screen grid, so edges shimmer and wobble a little
+THREE.ShaderChunk.project_vertex = THREE.ShaderChunk.project_vertex.replace(
+  'gl_Position = projectionMatrix * mvPosition;',
+  'gl_Position = projectionMatrix * mvPosition;\n\tgl_Position.xy = floor(gl_Position.xy / gl_Position.w * vec2(170.0, 128.0) + 0.5) / vec2(170.0, 128.0) * gl_Position.w;',
+);
+
 // How hard to push this device: picked from the hardware, then adjusted while you play.
 const quality = detectQuality();
 console.info(`[piss-gnomes] quality ${quality.tier} (${quality.why})`);
 // with the post pass on, anti-aliasing happens inside it, so the canvas itself does not need MSAA
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !quality.post, powerPreference: 'high-performance' });
-let pixelRatio = quality.ratioMax;
+// the picture is rendered small on purpose (about 360 lines tall) and scaled up with hard pixels, like a 1998 console
+const RETRO_LINES = 360;
+let ratioScale = 1;
+const retroRatio = () => Math.max(0.3, Math.min(window.devicePixelRatio || 1, RETRO_LINES / window.innerHeight));
+let pixelRatio = retroRatio();
 renderer.setPixelRatio(pixelRatio);
 // a lost graphics context (a phone being busy, or a tab swap) is fixed by starting again
 canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
 canvas.addEventListener('webglcontextrestored', () => location.reload());
 
 const scene = new THREE.Scene();
-const BASE_HI = 1.7;
-const BASE_SI = 0.9;
-const FOG_NEAR = 24;
-const FOG_FAR = quality.drawDist;
-const fog = new THREE.Fog(0xdbeeff, FOG_NEAR, FOG_FAR);
+const BASE_HI = 1.9;
+const BASE_SI = 0.95;
+const FOG_NEAR = 10;
+const FOG_FAR = Math.round(quality.drawDist * 0.7); // thick night fog, like the old games
+const fog = new THREE.Fog(0x0d121a, FOG_NEAR, FOG_FAR);
 scene.fog = fog;
-const hemi = new THREE.HemisphereLight(0xffffff, 0xb0e890, BASE_HI);
+const hemi = new THREE.HemisphereLight(0xa0b0d8, 0x3c4a34, BASE_HI);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff4d8, BASE_SI);
+const sun = new THREE.DirectionalLight(0xb8c4e8, BASE_SI); // the moon
 sun.position.set(-0.4, 1, 0.5);
 scene.add(sun);
 
@@ -58,6 +68,8 @@ trip.setPlanes(camera.near, camera.far);
 function fit() {
   const w = window.innerWidth;
   const h = window.innerHeight;
+  pixelRatio = retroRatio() * ratioScale;
+  renderer.setPixelRatio(pixelRatio);
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.fov = w / h >= 1 ? 72 : 88; // a taller view needs a wider lens to see the same width
@@ -76,17 +88,17 @@ const sfx = new Sfx();
 
 const mistWall = new THREE.Mesh(
   new THREE.CylinderGeometry(1, 1, 18, 56, 1, true),
-  new THREE.MeshBasicMaterial({ color: 0xff2bd6, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false, fog: false }),
+  new THREE.MeshBasicMaterial({ color: 0xa8222a, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, fog: false }),
 );
 mistWall.position.y = 9;
-const mistLine = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 5, 96).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff7af0, fog: false }));
+const mistLine = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 5, 96).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xc0282d, fog: false }));
 mistLine.position.y = 0.1;
 scene.add(mistWall, mistLine);
 
 const FIRST = ['Barnaby', 'Gorse', 'Mildred', 'Pudding', 'Nettle', 'Fungus', 'Bramble', 'Turnip', 'Hazel', 'Mortimer', 'Biscuit', 'Wilbur', 'Agnes', 'Thistle', 'Cornelius', 'Dandelion', 'Humphrey', 'Marigold', 'Percival', 'Quince', 'Rufus', 'Sorrel', 'Tobias', 'Ulysses', 'Violet', 'Wombat', 'Yarrow', 'Zebedee', 'Clover', 'Ferdinand'];
 const TITLED = ['Sir Wetsalot', 'Captain Drip', 'Lord Puddle', 'Old Tumble', 'Dame Splash', 'The Dribbler', 'Moist Mike', 'Baron Bladder', 'Lady Leak', 'Gnomeo', 'Wee Willie', 'Damp Dave', 'Splashy Pete', 'Puddle Pete', 'Count Drizzle', 'Tinkle Tim', 'Gushing Gus', 'Madam Mizzle', 'Trickle Tom', 'Flushing Fred'];
 const NAMES = [...FIRST, ...TITLED];
-const HATS = [0xff3b3b, 0xffa21a, 0xffe23a, 0x4ade50, 0x19e3ff, 0x4a7bff, 0xb04aff, 0xff2bd6, 0xe8e8e8, 0xa0683a, 0x2ad0a0, 0xff7a5a];
+const HATS = [0xc0282d, 0xd0842a, 0xd0c040, 0x4a9a4a, 0x2a9aaa, 0x3a5aaa, 0x7a4aaa, 0xaa3a7a, 0xc8c8c0, 0x7a5a3a, 0x2a8a6a, 0xc06a4a];
 
 const player = new Gnome(scene, 'You', HATS[0], true, 0);
 const bots: Gnome[] = [];
@@ -647,9 +659,9 @@ let idleT = 4;
 let nathSeen = false;
 let psy = 0;
 let tinted = false;
-const baseSky = new THREE.Color(0xffffff);
-const baseGround = new THREE.Color(0xb0e890);
-const baseSun = new THREE.Color(0xfff4d8);
+const baseSky = new THREE.Color(0xa0b0d8);
+const baseGround = new THREE.Color(0x3c4a34);
+const baseSun = new THREE.Color(0xb8c4e8);
 const tmpA = new THREE.Color();
 const tmpB = new THREE.Color();
 const landing = { x: 0, z: 0 };
@@ -1078,9 +1090,8 @@ let sample = 0;
 let sampleSum = 0;
 let capTo60 = false;
 
-function setRatio(r: number) {
-  pixelRatio = Math.max(quality.ratioMin, Math.min(quality.ratioMax, r));
-  renderer.setPixelRatio(pixelRatio);
+function setRatio(factor: number) {
+  ratioScale = Math.max(0.6, Math.min(1, ratioScale * factor));
   fit();
 }
 
@@ -1103,11 +1114,11 @@ function loop(now: number) {
   if (slowMs > 1600) {
     slowMs = 0;
     lastDown = now;
-    if (pixelRatio > quality.ratioMin + 0.01) setRatio(pixelRatio * 0.85);
+    if (ratioScale > 0.61) setRatio(0.85);
     else if (trip.level > 0) trip.level--;
   }
-  if (ema < 15.5 && pixelRatio < quality.ratioMax - 0.01 && now - lastDown > 12000) fastMs += delta; else fastMs = 0;
-  if (fastMs > 5000) { fastMs = 0; setRatio(pixelRatio * 1.12); }
+  if (ema < 15.5 && ratioScale < 0.99 && now - lastDown > 12000) fastMs += delta; else fastMs = 0;
+  if (fastMs > 5000) { fastMs = 0; setRatio(1.12); }
 }
 requestAnimationFrame((t) => { last = t; lastDrawn = t; loop(t); });
 

@@ -6,7 +6,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="theme-color" content="#6ad0ff" />
+<meta name="theme-color" content="#0a0c10" />
 <title>Piss Gnomes: Last Gnome Standing</title>
 <style>
   :root {
@@ -160,6 +160,63 @@
     .howto h2 { font-size: 15px; margin-bottom: 4px; }
   }
   @media (max-height: 420px) { .overlay h1 { margin-bottom: 0; } .rules { margin: 6px 0 8px; } .overlay p.long { display: none; } .big { padding: 8px 28px; } }
+
+  /* ===== Tenchu: night, ink and blood red ===== */
+  :root { --ink: #120e10; --pink: #a8222a; --yellow: #c8a24a; --cyan: #5a6a80; --green: #4a6a3a; --shadow: rgba(0,0,0,.6); --paper: #d8ccae;
+    --font: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Palatino Linotype", Georgia, serif; }
+  html, body { background: #06080c; font-weight: 700; letter-spacing: .04em; }
+  canvas#game { image-rendering: pixelated; image-rendering: crisp-edges; }
+  .glass { background: rgba(14,12,14,.84); color: #e8dcc0; border: 2px solid #a8222a; border-radius: 3px; box-shadow: 0 0 0 1px #000, 0 3px 0 rgba(0,0,0,.6); }
+  .stick .ring { border: 3px solid rgba(232,220,192,.55); background: rgba(10,8,10,.25); box-shadow: 0 0 0 1px #000; }
+  .stick .knob { background: #a8222a; border: 3px solid #e8dcc0; box-shadow: 0 0 0 1px #000; }
+  #crosshair { width: 16px; height: 16px; margin: -8px 0 0 -8px; border: 2px solid #c0282d; box-shadow: 0 0 0 1px #000; }
+  #peeBtn, #jumpBtn { border: 4px solid #1a1214; color: #f0e6d0; letter-spacing: 3px; }
+  #peeBtn { background: radial-gradient(circle at 35% 30%, #c8353a, #5a0f14); box-shadow: 0 0 0 2px #a8222a, 0 6px 0 #000, 0 12px 18px rgba(0,0,0,.5); }
+  #jumpBtn { background: radial-gradient(circle at 35% 30%, #7a8aa0, #26303c); box-shadow: 0 0 0 2px #5a6a80, 0 6px 0 #000, 0 10px 16px rgba(0,0,0,.5); }
+  #peeBtn.on, #jumpBtn.on { box-shadow: 0 0 0 2px #e8dcc0, 0 2px 0 #000; }
+  .hint, #feed { color: #e8dcc0; text-shadow: 0 1px 0 #000, 0 -1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 2px 4px #000; }
+  #alive b { color: #d8b050; }
+  #mist { border-color: #a8222a; }
+  #mist.hot { background: #3a1014; }
+  #minimap { border: 3px solid #a8222a; box-shadow: 0 0 0 2px #000, 0 4px 0 rgba(0,0,0,.6); background: #10141a; }
+  #loc, #potion, #buffs, #modchip, #wizard, #chatter { background: rgba(14,12,14,.88); color: #e8dcc0; border: 2px solid #c8a24a; border-radius: 3px; box-shadow: 0 0 0 1px #000, 0 3px 0 rgba(0,0,0,.6); }
+  #wizard { border-color: #8a60c0; background: rgba(30,18,44,.9); color: #e8d8ff; }
+  #buffs { border-color: #4a6a3a; }
+  #bars { border-color: #c8a24a; }
+  .bar { background: #2a2226; border: 1px solid #000; border-radius: 2px; }
+  .bar i { border-radius: 1px; }
+  #hpfill { background: linear-gradient(90deg, #6a0e16, #c0282d); }
+  #blfill { background: linear-gradient(90deg, #7a5a22, #d8b050); }
+  #banner { color: #f0e6d0; -webkit-text-stroke: .12em #000; paint-order: stroke fill; text-shadow: 0 .06em 0 #a8222a; font-weight: 900; letter-spacing: .08em; }
+  #banner small { color: #d8b050; -webkit-text-stroke: .28em #000; letter-spacing: .12em; }
+  #buttons button { background: #14100e; border: 2px solid #a8222a; border-radius: 3px; color: #e8dcc0; box-shadow: 0 0 0 1px #000, 0 3px 0 rgba(0,0,0,.6); }
+  .bubble { background: #d8ccae; color: #1a1214; border: 2px solid #1a1214; border-radius: 3px; box-shadow: 0 0 0 1px #a8222a, 0 3px 0 rgba(0,0,0,.5); }
+  .bubble.big { background: #e8d8a0; }
+  #hurt { box-shadow: inset 0 0 90px 24px rgba(168,20,28,.9); }
+  #mistfx { background: radial-gradient(ellipse at center, transparent 30%, rgba(168,34,42,.5) 100%); }
+
+  /* the menus: a red sun, ink, and the character for shinobi */
+  .overlay { background: radial-gradient(circle at 50% 30%, #a8222a 0 7.5vmin, rgba(168,34,42,0) 7.9vmin), url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><text x='200' y='330' font-size='360' text-anchor='middle' fill='%23ffffff' fill-opacity='.045' font-family='serif'>%E5%BF%8D</text></svg>") center 55% / min(78vmin, 520px) no-repeat, radial-gradient(ellipse at 50% 18%, #261d21 0%, #0a080a 72%); }
+  #over, #pause { background: radial-gradient(circle at 50% 30%, rgba(168,34,42,.55) 0 7.5vmin, rgba(168,34,42,0) 7.9vmin), rgba(6,4,6,.92); }
+  .overlay h1 { color: #f0e6d0; -webkit-text-stroke: .045em #3a0a10; text-shadow: 0 .05em 0 #a8222a, 0 .1em 0 #000; letter-spacing: .1em; }
+  .overlay h1 span { color: inherit !important; }
+  .overlay .sub { color: #d8b050; -webkit-text-stroke: 0; paint-order: normal; text-shadow: 0 2px 0 #000; letter-spacing: .32em; text-transform: uppercase; }
+  .overlay p { color: #cdbf9f; }
+  .rules div, .rules div:nth-child(2), .rules div:nth-child(3) { background: #16121a; color: #e8dcc0; border: 2px solid #a8222a; border-radius: 3px; box-shadow: 0 0 0 1px #000, 0 4px 0 rgba(0,0,0,.6); }
+  .big { color: #f0e6d0; background: linear-gradient(#b02a30, #6a1016); border: 2px solid #000; border-radius: 3px; box-shadow: 0 0 0 2px #c8a24a, 0 5px 0 #000; text-shadow: 0 2px 0 #000; letter-spacing: .25em; }
+  .big:active { box-shadow: 0 0 0 2px #e8dcc0, 0 2px 0 #000; }
+  .big.alt { background: linear-gradient(#3a4452, #1e252e); box-shadow: 0 0 0 2px #7a8aa0, 0 5px 0 #000; }
+  #stats { color: #d8ccae; }
+  #stats b { color: #d8b050; }
+  .howto h2 { color: #e8dcc0; -webkit-text-stroke: .3em #000; letter-spacing: .3em; }
+  .card, .slide:nth-child(4n+2) .card, .slide:nth-child(4n+3) .card, .slide:nth-child(4n+4) .card { background: #d8ccae; color: #2a1c14; border: 2px solid #1a1214; border-radius: 3px; box-shadow: 0 0 0 2px #a8222a, 0 5px 0 rgba(0,0,0,.6); }
+  .card h3, .slide:nth-child(4n+2) h3, .slide:nth-child(4n+3) h3, .slide:nth-child(4n+4) h3 { color: #a8222a; letter-spacing: .15em; }
+  .arrow { background: #a8222a; border: 2px solid #e8dcc0; box-shadow: 0 0 0 1px #000, 0 3px 0 rgba(0,0,0,.6); border-radius: 3px; color: #f0e6d0; }
+  .dots button { background: #4a4046; border: 2px solid #e8dcc0; border-radius: 2px; box-shadow: 0 0 0 1px #000; }
+  .dots button.on { background: #a8222a; }
+  #bigmap { background: rgba(0,0,0,.72); }
+  #bigmap canvas { border: 4px solid #d8ccae; border-radius: 3px; box-shadow: 0 0 0 3px #a8222a, 0 10px 0 rgba(0,0,0,.6); }
+  #bigmap p { color: #d8ccae; text-shadow: 0 2px 0 #000; }
 </style>
 </head>
 <body class="inmenu">
@@ -201,8 +258,8 @@
 
 <div class="overlay on" id="menu">
   <h1><span>P</span><span>I</span><span>S</span><span>S</span> <span>G</span><span>N</span><span>O</span><span>M</span><span>E</span><span>S</span></h1>
-  <div class="sub">LAST GNOME STANDING</div>
-  <p>Fifty gnomes. One huge cheerful mushroom forest. Pee is your only weapon, and the mist is closing in.</p>
+  <div class="sub">Last gnome standing</div>
+  <p>Fifty gnomes. One huge moonlit mushroom forest. Pee is your only weapon, and the mist is closing in.</p>
   <button class="big" id="btnPlay">PLAY</button>
   <p class="more">swipe the cards below for how to play</p>
 

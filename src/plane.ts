@@ -43,24 +43,24 @@ export class BattlePlane {
       return m;
     };
     // the model's nose points to -z
-    box(3.2, 3, 14, 0, 0, 0, 0xff7ab8); // the body
-    box(3.3, 0.8, 14.1, 0, -0.7, 0, 0xffffff); // a white belly stripe
-    box(3.3, 0.45, 14.1, 0, 0.5, 0, 0xffd34a); // and a yellow one
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(1.7, 3.2, 8), mat(0xffd34a));
+    box(3.2, 3, 14, 0, 0, 0, 0x24242c); // the body
+    box(3.3, 0.8, 14.1, 0, -0.7, 0, 0x8a8a92); // a grey belly stripe
+    box(3.3, 0.45, 14.1, 0, 0.5, 0, 0xa8222a); // and a red one
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(1.7, 3.2, 8), mat(0xa8222a));
     nose.rotation.x = -Math.PI / 2;
     nose.position.set(0, 0, -8.6);
     this.group.add(nose);
-    box(2.4, 1, 2.6, 0, 1.7, -3, 0x8ad8ff); // cockpit windows
-    box(24, 0.5, 4.4, 0, 0.3, 0.8, 0xffffff); // wings
-    box(3.2, 0.55, 4.5, -10.4, 0.3, 0.8, 0xff7ab8);
-    box(3.2, 0.55, 4.5, 10.4, 0.3, 0.8, 0xff7ab8);
-    box(0.5, 4.4, 3.2, 0, 3, 6.6, 0xffd34a); // tail fin
-    box(7.4, 0.45, 2.3, 0, 0.9, 6.8, 0xffffff); // tail wings
-    for (let i = 0; i < 4; i++) box(0.12, 0.9, 1.1, i % 2 ? 1.62 : -1.62, 0.5, -1 + (i >> 1) * 3.2, 0x8ad8ff); // little windows
+    box(2.4, 1, 2.6, 0, 1.7, -3, 0x4a7a9a); // cockpit windows
+    box(24, 0.5, 4.4, 0, 0.3, 0.8, 0x50545e); // wings
+    box(3.2, 0.55, 4.5, -10.4, 0.3, 0.8, 0xa8222a);
+    box(3.2, 0.55, 4.5, 10.4, 0.3, 0.8, 0xa8222a);
+    box(0.5, 4.4, 3.2, 0, 3, 6.6, 0xa8222a); // tail fin
+    box(7.4, 0.45, 2.3, 0, 0.9, 6.8, 0x50545e); // tail wings
+    for (let i = 0; i < 4; i++) box(0.12, 0.9, 1.1, i % 2 ? 1.62 : -1.62, 0.5, -1 + (i >> 1) * 3.2, 0x4a7a9a); // little windows
     // the propeller
     this.prop.position.set(0, 0, -10.3);
-    const b1 = new THREE.Mesh(new SoftBox(0.4, 6.4, 0.3), mat(0xffd34a));
-    const b2 = new THREE.Mesh(new SoftBox(6.4, 0.4, 0.3), mat(0xffd34a));
+    const b1 = new THREE.Mesh(new SoftBox(0.4, 6.4, 0.3), mat(0x8a8a92));
+    const b2 = new THREE.Mesh(new SoftBox(6.4, 0.4, 0.3), mat(0x8a8a92));
     this.prop.add(b1, b2);
     this.group.add(this.prop);
     this.group.scale.setScalar(1.3);
