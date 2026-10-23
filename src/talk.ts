@@ -55,6 +55,14 @@ export const LINES: Record<string, string[]> = {
   'chili:potion': ['CHILI WEE! Feel the burn!', 'Fire in the hole! Literally!', 'Hot sauce edition!'],
   'ice:potion': ['ICE WEE! Brain freeze for all!', 'Cool as a cucumber, wet as a duck!', 'Frosty!'],
   'acid:potion': ['ACID PEE! Science is fun!', 'Nobody tell the lawyers!', 'Pee, but evil!'],
+  'speed:bonus': ['ZOOOOOM!', 'Gotta go fast!', 'My legs have opinions!', 'Nyoooom!', 'I AM THE WIND! DAMP WIND!'],
+  'health:bonus': ['Ahhh, bug-fart vitamins!', 'I feel brand new! And smelly!', 'Healed by a bottom! Science!', 'Aaah, fresh!'],
+  'bounce:bonus': ['BOING BOING BOING!', 'I am a gnome-ball!', 'Wheeeeee! BOUNCE!', 'My knees are springs!', 'Hop hop HOP!'],
+  'gulp:bonus': ['BIG GULP! Glug glug!', 'Bladder full! Bring it ON!', 'Unlimited wee! Unlimited!', 'I am a fountain!'],
+  'bug:fart': [
+    'Did that bug just FART?!', 'BUG! WHAT DID YOU EAT?!', 'That is NOT a normal smell!', 'Whoever smelt it, dealt it. WAIT, THE BUG!', 'The bug did a toot!',
+    'It is raining prizes from a bum!', 'Free stuff from a bottom! Forest rules!', 'I smell... opportunity. And eggs.', 'The air is green and I like it!',
+  ],
   mist: [
     'THE MIST! IT GROWS!', 'The forest has had ENOUGH of us!', 'Magenta fog! Somebody call a wizard!', 'The mist is hungry!', 'Run! Walk! Panic!',
   ],
@@ -166,7 +174,7 @@ export class Banter {
         const u = new SpeechSynthesisUtterance(text);
         u.pitch = deep ? 0.3 : 1;
         u.rate = 0.8;
-        u.volume = 1;
+        u.volume = Math.max(0.2, 1 - Math.hypot(pos.x - this.player.pos.x, pos.z - this.player.pos.z) / 55);
         ss.speak(u);
       } catch { /* the bubble is enough */ }
     }
@@ -181,7 +189,8 @@ export class Banter {
       if (v.length) u.voice = v[g.id % v.length];
       u.pitch = 0.5 + ((g.id * 37) % 15) / 10; // 0.5 .. 1.9
       u.rate = 1.05 + ((g.id * 13) % 6) / 10;
-      u.volume = g.isPlayer ? 0.9 : 0.7;
+      const d = Math.hypot(g.pos.x - this.player.pos.x, g.pos.z - this.player.pos.z);
+      u.volume = g.isPlayer ? 0.9 : Math.max(0.12, 0.8 * (1 - d / 42)); // speech cannot be panned, but it can fade with distance
       ss.speak(u);
     } catch { /* some browsers refuse; the bubbles are enough */ }
   }

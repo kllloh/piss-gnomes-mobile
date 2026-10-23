@@ -4,6 +4,7 @@ import { Gnome, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
 import { Potions } from './potions';
 import { Banter, modTagline } from './talk';
 import { Nathaniel } from './nathaniel';
+import { Bugs, BONUS_INFO, type BonusKind } from './bugs';
 import { Trip } from './trip';
 import { PeeSystem, RANGE, PEE } from './pee';
 import { Input } from './input';
@@ -76,12 +77,19 @@ for (let i = 1; i < 10; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i]
 const gnomes: Gnome[] = [player, ...bots];
 
 const potions = new Potions(scene, forest);
-const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true, potions, mod: null };
+const bugs = new Bugs(scene, forest);
+const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true, potions, bugs, mod: null };
 fit();
 
 const banter = new Banter($('bubbles'), $('chatter'), player);
 const nathaniel = new Nathaniel(scene);
 const NATHANIEL_POS = new THREE.Vector3();
+bugs.onFart = (x, z) => {
+  sfx.fartAt({ x, y: 0.7, z });
+  // somebody close by is horrified, or delighted
+  const near = bots.filter((b) => b.alive && Math.hypot(b.pos.x - x, b.pos.z - z) < 24);
+  if (near.length && Math.random() < 0.6) banter.sayLine(near[Math.floor(Math.random() * near.length)], 'bug:fart');
+};
 Gnome.onSay = (g, what) => banter.say(g, what, arena.mod, what === 'death' || what === 'kill');
 
 // --- input ------------------------------------------------------------------------------------------------
@@ -139,6 +147,12 @@ function drawMinimap() {
   mapCtx.lineWidth = 1.5;
   mapCtx.stroke();
   mapCtx.lineWidth = 1;
+  for (const b of bugs.lying) {
+    mapCtx.beginPath();
+    mapCtx.arc(px(b.x), px(b.z), 3, 0, Math.PI * 2);
+    mapCtx.fillStyle = hex(b.color);
+    mapCtx.fill();
+  }
   // Nathaniel: a gold diamond
   mapCtx.fillStyle = '#ffe066';
   mapCtx.save();
@@ -206,6 +220,7 @@ function startMatch() {
   arena.mod = null;
   sfx.setMood('none');
   potions.reset();
+  bugs.reset();
   banter.clear();
   nathaniel.spawn(forest, player.pos);
   idleT = 4;
@@ -232,14 +247,14 @@ Gnome.onDeath = (victim, killer) => {
     banner('YOU WERE SOAKED', `${ordinal(playerPlace)} place`, 2200);
     overTimer = 2.2;
   } else {
-    sfx.pop();
+    sfx.popAt(victim.pos);
     if (killer?.isPlayer) banner('NICE SOAKING!', `${victim.name} is out`, 1200);
   }
 };
 
 let lastHurtSfx = 0;
 Gnome.onHurt = (g) => {
-  if (!g.isPlayer) return;
+  if (!g.isPlayer) { sfx.hurtAt(g.pos, g.id); return; }
   const now = performance.now();
   if (now - lastHurtSfx > 140) {
     lastHurtSfx = now;
@@ -288,7 +303,7 @@ function pause(on: boolean) {
   paused = on;
   $('pause').classList.toggle('on', on);
   input.release();
-  if (on) sfx.hiss(false, 0);
+  if (on) { sfx.hiss(false); sfx.hissOthers([]); }
 }
 
 // --- buttons -------------------------------------------------------------------------------------------------------------
@@ -349,6 +364,36 @@ const baseSun = new THREE.Color(0xfff2d0);
 const tmpA = new THREE.Color();
 const tmpB = new THREE.Color();
 const landing = { x: 0, z: 0 };
+const fwd = new THREE.Vector3();
+const stepSign = new Map<number, number>();
+let nathSign = 0;
+
+/** Streams and footsteps of everybody nearby, each coming from where they actually are. */
+function soundScape() {
+  const peeing: { pos: THREE.Vector3; v: number; d: number }[] = [];
+  let steps = 0;
+  for (const g of gnomes) {
+    if (g.isPlayer || !g.alive) continue;
+    const d = Math.hypot(g.pos.x - camera.position.x, g.pos.z - camera.position.z);
+    if (g.peeing && d < 38) peeing.push({ pos: g.pos, v: Math.max(0.15, 1 - d / 38), d });
+    const sg = Math.sin(g.walkPhase) >= 0 ? 1 : -1;
+    if (stepSign.get(g.id) !== sg) {
+      stepSign.set(g.id, sg);
+      if (d < 24 && Math.hypot(g.vel.x, g.vel.z) > 1 && steps++ < 3) sfx.stepAt(g.pos);
+    }
+  }
+  peeing.sort((a, b) => a.d - b.d);
+  sfx.hiss(player.peeing);
+  sfx.hissOthers(peeing);
+  // Nathaniel's big boots
+  if (state === 'play') {
+    const sg = Math.sin(nathaniel.stepPhase) >= 0 ? 1 : -1;
+    if (sg !== nathSign) {
+      nathSign = sg;
+      if (Math.hypot(nathaniel.pos.x - camera.position.x, nathaniel.pos.z - camera.position.z) < 45) sfx.stepAt(nathaniel.pos, true);
+    }
+  }
+}
 const fogCol = new THREE.Color();
 const landMark = new THREE.Mesh(
   new THREE.RingGeometry(0.35, 0.55, 20).rotateX(-Math.PI / 2),
@@ -425,6 +470,13 @@ function updateHud() {
     wz.style.display = 'none';
     $('wizfx').style.opacity = '0';
   }
+  const buffs: string[] = [];
+  if (player.speedT > 0) buffs.push(`SPEED ${Math.ceil(player.speedT)}s`);
+  if (player.bounceT > 0) buffs.push(`BOUNCE ${Math.ceil(player.bounceT)}s`);
+  if (player.freeT > 0) buffs.push(`BIG GULP ${Math.ceil(player.freeT)}s`);
+  const bf = $('buffs');
+  bf.style.display = buffs.length && player.alive ? 'block' : 'none';
+  if (buffs.length) bf.textContent = buffs.join('  \u00b7  ');
   const chip = $('modchip');
   if (curMod && state === 'play') {
     chip.style.display = 'block';
@@ -486,10 +538,18 @@ function frame(nowMs: number, lastMs: number) {
       });
       potions.update(dt, nowMs / 1000, gnomes, (g, kind) => {
         banter.sayLine(g, `${kind}:potion`);
+        if (!g.isPlayer) sfx.grabAt(g.pos);
         if (g.isPlayer) {
           sfx.pop();
           banner(PEE[kind].name.toUpperCase() + '!', PEE[kind].blurb, 1700);
         }
+      });
+      bugs.update(dt, nowMs / 1000, arena.ringR, gnomes, state === 'play', (g, kind: BonusKind) => {
+        if (g.isPlayer) {
+          sfx.pop();
+          banner(BONUS_INFO[kind].name + '!', BONUS_INFO[kind].blurb, 1700);
+        } else sfx.grabAt(g.pos);
+        banter.sayLine(g, `${kind}:bonus`);
       });
       {
         const ev = nathaniel.update(dt, nowMs / 1000, forest, arena.ringR, state === 'play' && player.alive ? player.pos : null);
@@ -535,10 +595,8 @@ function frame(nowMs: number, lastMs: number) {
         }
       }
 
-      // sound of everybody's streams
-      let others = 0;
-      for (const b of bots) if (b.alive && b.peeing) others += Math.max(0, 1 - Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z) / 16) * 0.5;
-      sfx.hiss(player.peeing, others);
+      // the sounds of the forest, placed around you
+      soundScape();
 
       // end of the match / the player's own card
       if (state === 'play' && aliveGnomes().length <= 1) endMatch();
@@ -550,7 +608,8 @@ function frame(nowMs: number, lastMs: number) {
       // the match is over: let everyone keep wandering around, quietly
       for (const g of gnomes) { g.moveX = g.moveZ = 0; g.wantPee = false; g.update(dt, arena); }
       pee.update(dt, forest, gnomes, () => {});
-      sfx.hiss(false, 0);
+      sfx.hiss(false);
+      sfx.hissOthers([]);
     }
     updateHud();
   }
@@ -577,13 +636,15 @@ function frame(nowMs: number, lastMs: number) {
     camera.rotation.set(-0.08, -a - Math.PI / 2 + 0.6, 0);
   } else {
     const bob = Math.sin(focus.walkPhase) * 0.05 * Math.min(1, Math.hypot(focus.vel.x, focus.vel.z) / 3);
-    camera.position.set(focus.pos.x, EYE + bob + (focus.alive ? 0 : 0.4), focus.pos.z);
+    camera.position.set(focus.pos.x, EYE + focus.pos.y + bob + (focus.alive ? 0 : 0.4), focus.pos.z);
     camera.rotation.set(focus.alive ? (focus === player ? focus.pitch : -0.04) : -0.4, focus.yaw + Math.PI, 0);
   }
   if (shownMod === 'bogan' && modAmt > 0.01) {
     camera.rotation.z = Math.sin(t * 0.9) * 0.05 * modAmt;
     camera.rotation.y += Math.sin(t * 0.6) * 0.03 * modAmt;
   } else camera.rotation.z = 0;
+  camera.getWorldDirection(fwd);
+  sfx.setListener(camera.position, fwd.x, fwd.y, fwd.z);
   for (const g of gnomes) g.billboard(camera);
   banter.update(dt, camera);
 
@@ -592,7 +653,7 @@ function frame(nowMs: number, lastMs: number) {
     const cp = Math.cos(player.pitch);
     const fx = Math.sin(player.yaw) * cp;
     const fz = Math.cos(player.yaw) * cp;
-    const ok = pee.landing(player.pos.x + Math.sin(player.yaw) * 0.5, 0.75, player.pos.z + Math.cos(player.yaw) * 0.5, fx, Math.sin(player.pitch), fz, forest, landing);
+    const ok = pee.landing(player.pos.x + Math.sin(player.yaw) * 0.5, 0.75 + player.pos.y, player.pos.z + Math.cos(player.yaw) * 0.5, fx, Math.sin(player.pitch), fz, forest, landing);
     landMark.visible = ok;
     landMark.position.set(landing.x, 0.08, landing.z);
     landMark.rotation.z = t * 1.5;
@@ -675,4 +736,4 @@ function loop(now: number) {
 requestAnimationFrame((t) => { last = t; loop(t); });
 
 // a little handle for testing
-(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, nathaniel, mod: (m: Mod) => { curMod = m; lastMod = m; shownMod = m; arena.mod = m; modUntil = arena.time + 60; sfx.setMood(m); }, get state() { return state; } };
+(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, mod: (m: Mod) => { curMod = m; lastMod = m; shownMod = m; arena.mod = m; modUntil = arena.time + 60; sfx.setMood(m); }, get state() { return state; } };

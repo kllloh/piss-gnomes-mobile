@@ -37,3 +37,9 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Nathaniel:** a tall, dorky metalhead (glasses, skull band T-shirt, blue jeans) three gnomes high who wanders the forest
   shouting his own name. Walk up to him (he shows as a gold diamond on the minimap) and he gives you **Wizard Mode**: 20
   seconds of being unhurtable, with rainbow pee. He cannot be hurt and only blesses you every 40 seconds.
+- **Bugs:** six big beetles wander the forest, stop, shudder and fart out a glowing bonus (it blinks and vanishes after 16 s):
+  **Speed** (10 s of running much faster), **Health** (+50), **Bounce** (12 s of hopping, which also makes you harder to hit) or
+  **Big Gulp** (bladder refilled and free for 8 s). Anybody can grab them, bots included.
+- **3D sound:** the other gnomes' streams, hits, deaths, footsteps, Nathaniel's big boots and the bug farts are all placed in
+  space around the camera (HRTF panning with distance fade), so headphones tell you where things are. Speech voices cannot be
+  panned by the browser, so those just fade with distance.

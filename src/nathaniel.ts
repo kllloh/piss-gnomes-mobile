@@ -79,6 +79,10 @@ export class Nathaniel {
   private goalT = 0;
   private shoutT = 6;
   private marker: THREE.Mesh;
+  /** For footstep sounds. */
+  get stepPhase(): number {
+    return this.walk;
+  }
   /** He stops and faces whoever he is blessing. */
   private pause = 0;
   private stuckT = 0;
@@ -146,13 +150,13 @@ export class Nathaniel {
     mk(h, 0.14, 0.08, 0.08, 0, 0.26, -0.52, 0x111111); // bridge
     for (const sx of [-0.52, 0.52]) mk(h, 0.06, 0.08, 0.5, sx, 0.22, -0.28, 0x111111); // arms of the glasses
     // messy dark hair, long at the back
-    mk(h, 1.08, 0.3, 1.02, 0, 0.62, 0.02, 0x2a1a10);
-    mk(h, 1.0, 0.7, 0.35, 0, 0.1, 0.55, 0x2a1a10);
+    mk(h, 1.08, 0.3, 1.02, 0, 0.62, 0.02, 0x8a5530);
+    mk(h, 1.0, 0.7, 0.35, 0, 0.1, 0.55, 0x8a5530);
     for (let i = 0; i < 6; i++) {
-      const tuft = mk(h, 0.28, 0.28, 0.28, -0.4 + i * 0.16, 0.85 + (i % 2) * 0.1, -0.2 + (i % 3) * 0.2, 0x2a1a10);
+      const tuft = mk(h, 0.28, 0.28, 0.28, -0.4 + i * 0.16, 0.85 + (i % 2) * 0.1, -0.2 + (i % 3) * 0.2, 0x8a5530);
       tuft.rotation.set(0.3 * i, 0.5 * i, 0.2);
     }
-    mk(h, 0.9, 0.5, 0.2, 0, 0.0, 0.7, 0x2a1a10).position.y = -0.35;
+    mk(h, 0.9, 0.5, 0.2, 0, 0.0, 0.7, 0x8a5530).position.y = -0.35;
 
     this.root.scale.setScalar(1.12);
     scene.add(this.root);

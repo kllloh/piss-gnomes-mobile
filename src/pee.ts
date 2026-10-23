@@ -178,7 +178,7 @@ export class PeeSystem {
         if (!t.alive || t === shooter) continue;
         const ddx = t.pos.x - x;
         const ddz = t.pos.z - z;
-        if (ddx * ddx + ddz * ddz < 0.45 && y < 2.4) { hit = t; break; }
+        if (ddx * ddx + ddz * ddz < 0.45 && y > t.pos.y - 0.2 && y < t.pos.y + 2.4) { hit = t; break; }
       }
       if (hit) {
         onHit(hit, shooter, KINDS[this.kind[i]], x, z);

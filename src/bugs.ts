@@ -1,0 +1,316 @@
+import * as THREE from 'three';
+import { HALF, type Forest } from './forest';
+import { MAX_HP, type Gnome } from './gnomes';
+
+export type BonusKind = 'speed' | 'health' | 'bounce' | 'gulp';
+export const BONUS_INFO: Record<BonusKind, { name: string; blurb: string; color: number }> = {
+  speed: { name: 'SPEED BOOST', blurb: 'Zoom! You run much faster for 10 seconds.', color: 0x19e3ff },
+  health: { name: 'HEALTH', blurb: 'A big dollop of health.', color: 0xff4a6a },
+  bounce: { name: 'BOUNCE', blurb: 'Boing! You bounce around for 12 seconds.', color: 0xff2bd6 },
+  gulp: { name: 'BIG GULP', blurb: 'Bladder refilled, and it will not drain for 8 seconds.', color: 0xffd23c },
+};
+const KINDS: BonusKind[] = ['speed', 'health', 'bounce', 'gulp'];
+
+const BUG_COUNT = 6;
+const BONUS_LIFE = 16;
+const GRAB = 1.5;
+const PUFFS = 36;
+
+const SHELLS = [0x2f9a5a, 0xd8742a, 0x7a4fb0, 0x2a8ad0, 0xc03a5a, 0x9ab02a];
+
+interface Bug {
+  root: THREE.Group;
+  legs: THREE.Group[];
+  tail: THREE.Group;
+  pos: THREE.Vector3;
+  yaw: number;
+  goal: THREE.Vector3;
+  goalT: number;
+  walk: number;
+  /** Counts down to the next fart. */
+  fartIn: number;
+  /** While > 0 the bug is mid-fart: stopped, shaking, tail up. */
+  farting: number;
+  stuckT: number;
+  lastX: number;
+  lastZ: number;
+  avoidT: number;
+  avoidDir: number;
+  farted: boolean;
+}
+
+interface Bonus {
+  x: number;
+  z: number;
+  kind: BonusKind;
+  life: number;
+  group: THREE.Group;
+  gem: THREE.Mesh;
+  mat: THREE.MeshBasicMaterial;
+}
+
+interface Puff {
+  mesh: THREE.Mesh;
+  vel: THREE.Vector3;
+  life: number;
+  max: number;
+  mat: THREE.MeshBasicMaterial;
+}
+
+const gemGeo = new THREE.OctahedronGeometry(0.5, 0);
+const ringGeo = new THREE.RingGeometry(0.7, 0.95, 20).rotateX(-Math.PI / 2);
+const puffGeo = new THREE.SphereGeometry(0.5, 8, 6);
+
+function makeBug(shell: number): { root: THREE.Group; legs: THREE.Group[]; tail: THREE.Group } {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  const lam = (c: number) => new THREE.MeshLambertMaterial({ color: c });
+  // the fat shell, with a stripe and spots
+  const shellMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), lam(shell));
+  shellMesh.scale.set(1, 0.75, 1.35);
+  shellMesh.position.y = 0.55;
+  body.add(shellMesh);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 1.3), lam(0x111111));
+  stripe.position.set(0, 0.94, 0.05);
+  body.add(stripe);
+  for (let i = 0; i < 4; i++) {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 4), lam(0xf5f0d0));
+    dot.position.set(i % 2 ? 0.27 : -0.27, 0.8, -0.2 + i * 0.22 - (i % 2) * 0.1);
+    body.add(dot);
+  }
+  // head, big goggly eyes, little antennae (front is -z)
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), lam(0x1c1c1c));
+  head.position.set(0, 0.5, -0.78);
+  body.add(head);
+  for (const sx of [-0.15, 0.15]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    eye.position.set(sx, 0.62, -1.02);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+    pupil.position.set(sx, 0.62, -1.11);
+    const ant = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.55, 0.04), lam(0x1c1c1c));
+    ant.position.set(sx * 1.4, 0.95, -0.95);
+    ant.rotation.set(-0.5, 0, sx * 2);
+    body.add(eye, pupil, ant);
+  }
+  // six legs
+  const legs: THREE.Group[] = [];
+  for (let i = 0; i < 6; i++) {
+    const leg = new THREE.Group();
+    const side = i % 2 ? 1 : -1;
+    leg.position.set(side * 0.4, 0.42, -0.45 + Math.floor(i / 2) * 0.45);
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.06), lam(0x1c1c1c));
+    seg.position.set(side * 0.25, -0.1, 0);
+    seg.rotation.z = side * -0.5;
+    leg.add(seg);
+    root.add(leg);
+    legs.push(leg);
+  }
+  // the business end, which lifts when it is time
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.5, 0.95);
+  const rear = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), lam(0x3a2a1a));
+  tail.add(rear);
+  body.add(tail);
+  root.add(body);
+  root.scale.setScalar(1.5);
+  return { root, legs, tail };
+}
+
+/** Bugs wander the forest, stop, shudder and fart out a random bonus. Anybody can walk into it. */
+export class Bugs {
+  private bugs: Bug[] = [];
+  private bonuses: Bonus[] = [];
+  private puffs: Puff[] = [];
+  private nextPuff = 0;
+  private scene: THREE.Scene;
+  /** A bug has just let one go (position), for sound and banter. */
+  onFart: ((x: number, z: number) => void) | null = null;
+
+  constructor(scene: THREE.Scene, private forest: Forest) {
+    this.scene = scene;
+    for (let i = 0; i < BUG_COUNT; i++) {
+      const m = makeBug(SHELLS[i % SHELLS.length]);
+      const pos = forest.randomFree(HALF - 6);
+      m.root.position.copy(pos);
+      scene.add(m.root);
+      this.bugs.push({
+        root: m.root, legs: m.legs, tail: m.tail, pos, yaw: Math.random() * 6, goal: pos.clone(), goalT: 0, walk: Math.random() * 6,
+        fartIn: 4 + Math.random() * 10, farting: 0, stuckT: 0, lastX: pos.x, lastZ: pos.z, avoidT: 0, avoidDir: 1, farted: false,
+      });
+    }
+    for (let i = 0; i < PUFFS; i++) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0x9aff4a, transparent: true, opacity: 0, depthWrite: false });
+      const mesh = new THREE.Mesh(puffGeo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      this.puffs.push({ mesh, vel: new THREE.Vector3(), life: 0, max: 1, mat });
+    }
+  }
+
+  reset() {
+    for (const b of this.bugs) { b.fartIn = 5 + Math.random() * 10; b.farting = 0; }
+    for (const bo of this.bonuses) this.scene.remove(bo.group);
+    this.bonuses.length = 0;
+    for (const p of this.puffs) { p.life = 0; p.mesh.visible = false; }
+  }
+
+  /** The nearest bonus lying about within `maxD`, or null. */
+  nearestBonus(x: number, z: number, maxD: number): { x: number; z: number } | null {
+    let best: Bonus | null = null;
+    let bd = maxD;
+    for (const b of this.bonuses) {
+      const d = Math.hypot(b.x - x, b.z - z);
+      if (d < bd) { bd = d; best = b; }
+    }
+    return best;
+  }
+
+  /** Every bonus, for the minimap. */
+  get lying(): { x: number; z: number; color: number }[] {
+    return this.bonuses.map((b) => ({ x: b.x, z: b.z, color: BONUS_INFO[b.kind].color }));
+  }
+
+  private puff(x: number, y: number, z: number) {
+    const p = this.puffs[this.nextPuff];
+    this.nextPuff = (this.nextPuff + 1) % PUFFS;
+    p.life = p.max = 1.2 + Math.random() * 0.8;
+    p.mesh.visible = true;
+    p.mesh.position.set(x + (Math.random() - 0.5) * 0.4, y, z + (Math.random() - 0.5) * 0.4);
+    p.vel.set((Math.random() - 0.5) * 1.2, 0.5 + Math.random() * 0.7, (Math.random() - 0.5) * 1.2);
+    p.mat.color.setHSL(0.22 + Math.random() * 0.1, 0.9, 0.5);
+  }
+
+  private spawnBonus(x: number, z: number) {
+    const kind = KINDS[Math.floor(Math.random() * KINDS.length)];
+    const color = BONUS_INFO[kind].color;
+    const group = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const gem = new THREE.Mesh(gemGeo, mat);
+    gem.scale.set(1, 1.5, 1);
+    gem.position.y = 1.5;
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, depthWrite: false }));
+    ring.position.y = 0.08;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 9, 8, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    beam.position.y = 4.5;
+    group.add(gem, ring, beam);
+    group.position.set(x, 0, z);
+    this.scene.add(group);
+    this.bonuses.push({ x, z, kind, life: BONUS_LIFE, group, gem, mat });
+  }
+
+  update(dt: number, t: number, ringR: number, gnomes: Gnome[], active: boolean, onPick: (g: Gnome, kind: BonusKind) => void) {
+    // --- the bugs ---
+    for (const b of this.bugs) {
+      let speed = 1.7;
+      if (b.farting > 0) {
+        b.farting -= dt;
+        speed = 0;
+        b.root.position.x = b.pos.x + Math.sin(t * 60) * 0.04; // shudder
+        b.tail.position.y = 0.75 + Math.sin(t * 40) * 0.05;
+        b.tail.rotation.x = -0.5;
+        // the gas comes out halfway through
+        if (!b.farted && b.farting < 0.6) {
+          b.farted = true;
+          const tx = b.pos.x + Math.sin(b.yaw) * -1.2;
+          const tz = b.pos.z + Math.cos(b.yaw) * -1.2;
+          for (let i = 0; i < 9; i++) this.puff(tx, 0.7, tz);
+          if (active) {
+            const spot = { x: b.pos.x - Math.sin(b.yaw) * 1.8, z: b.pos.z - Math.cos(b.yaw) * 1.8 };
+            this.forest.collide(spot, 0.6);
+            this.spawnBonus(spot.x, spot.z);
+          }
+          this.onFart?.(tx, tz);
+        }
+      } else {
+        b.tail.position.y = 0.5;
+        b.tail.rotation.x = 0;
+        b.root.position.x = b.pos.x;
+        if (active) b.fartIn -= dt;
+        if (b.fartIn <= 0) {
+          b.fartIn = 8 + Math.random() * 7;
+          b.farting = 1.3;
+          b.farted = false;
+          speed = 0;
+        }
+        b.goalT -= dt;
+        if (b.goalT <= 0 || Math.hypot(b.goal.x - b.pos.x, b.goal.z - b.pos.z) < 1.2) {
+          b.goal.copy(this.forest.randomFree(Math.max(8, Math.min(ringR - 5, HALF - 5))));
+          b.goalT = 5 + Math.random() * 5;
+        }
+        let dx = b.goal.x - b.pos.x;
+        let dz = b.goal.z - b.pos.z;
+        b.stuckT += dt;
+        if (b.stuckT > 0.6) {
+          if (Math.hypot(b.pos.x - b.lastX, b.pos.z - b.lastZ) < 0.3) { b.avoidT = 0.9; b.avoidDir = Math.random() < 0.5 ? 1 : -1; b.goalT = Math.min(b.goalT, 0.6); }
+          b.lastX = b.pos.x;
+          b.lastZ = b.pos.z;
+          b.stuckT = 0;
+        }
+        if (b.avoidT > 0) {
+          b.avoidT -= dt;
+          const l = Math.hypot(dx, dz) || 1;
+          [dx, dz] = [(-dz / l) * b.avoidDir + (dx / l) * 0.2, (dx / l) * b.avoidDir + (dz / l) * 0.2];
+        }
+        const d = Math.hypot(dx, dz) || 1;
+        let diff = Math.atan2(dx, dz) - b.yaw;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        b.yaw += diff * Math.min(1, dt * 5);
+        b.pos.x += (dx / d) * speed * dt;
+        b.pos.z += (dz / d) * speed * dt;
+        this.forest.collide(b.pos, 0.5);
+        b.root.position.z = b.pos.z;
+        b.root.position.x = b.pos.x;
+      }
+      if (speed > 0) b.walk += dt * 12;
+      b.root.position.z = b.pos.z;
+      b.root.rotation.y = b.yaw + Math.PI;
+      b.legs.forEach((leg, i) => (leg.rotation.y = speed > 0 ? Math.sin(b.walk + i * 1.7) * 0.5 : 0));
+    }
+
+    // --- gas clouds ---
+    for (const p of this.puffs) {
+      if (p.life <= 0) continue;
+      p.life -= dt;
+      if (p.life <= 0) { p.mesh.visible = false; continue; }
+      const f = 1 - p.life / p.max;
+      p.mesh.position.addScaledVector(p.vel, dt);
+      p.mesh.scale.setScalar(0.5 + f * 2.4);
+      p.mat.opacity = 0.55 * (1 - f);
+    }
+
+    // --- bonuses: spin, expire, get picked up ---
+    for (let i = this.bonuses.length - 1; i >= 0; i--) {
+      const bo = this.bonuses[i];
+      bo.life -= dt;
+      bo.gem.rotation.y = t * 3;
+      bo.gem.position.y = 1.5 + Math.sin(t * 3 + bo.x) * 0.2;
+      bo.group.visible = bo.life > 3 || Math.floor(bo.life * 6) % 2 === 0; // blinks when about to go
+      let taken = false;
+      if (active) {
+        for (const g of gnomes) {
+          if (!g.alive) continue;
+          const dx = g.pos.x - bo.x;
+          const dz = g.pos.z - bo.z;
+          if (dx * dx + dz * dz < GRAB * GRAB) {
+            applyBonus(g, bo.kind);
+            onPick(g, bo.kind);
+            taken = true;
+            break;
+          }
+        }
+      }
+      if (taken || bo.life <= 0) {
+        this.scene.remove(bo.group);
+        this.bonuses.splice(i, 1);
+      }
+    }
+  }
+}
+
+export function applyBonus(g: Gnome, kind: BonusKind) {
+  if (kind === 'speed') g.speedT = 10;
+  else if (kind === 'bounce') g.bounceT = 12;
+  else if (kind === 'health') { g.hp = Math.min(MAX_HP, g.hp + 50); g.burn = g.acid = 0; }
+  else { g.bladder = 100; g.locked = false; g.freeT = 8; }
+}

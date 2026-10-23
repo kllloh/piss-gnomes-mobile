@@ -5,6 +5,7 @@ import { lit } from './organic';
 import { HALF, type Forest } from './forest';
 import { RANGE, SPEED as DROP_SPEED, GRAVITY, PEE, type PeeKind, type PeeSystem } from './pee';
 import type { Potions } from './potions';
+import type { Bugs } from './bugs';
 
 /** Gnomes are drawn bigger than the first-person game's, so you can see them from above. */
 const VISUAL_SCALE = 1.25;
@@ -28,6 +29,7 @@ export interface Arena {
   /** Bots wait out the countdown. */
   frozen: boolean;
   potions: Potions;
+  bugs: Bugs;
   /** The silly mode that is on right now, if any. */
   mod: Mod | null;
 }
@@ -128,6 +130,11 @@ export class Gnome {
   potion: { kind: PeeKind; t: number } | null = null;
   /** Wizard Mode (from Nathaniel): seconds of being unhurtable. */
   wizard = 0;
+  /** Bug bonuses: seconds of speed, bouncing, and a bladder that does not drain. */
+  speedT = 0;
+  bounceT = 0;
+  freeT = 0;
+  private vy = 0;
   burn = 0;
   acid = 0;
   chill = 0;
@@ -232,6 +239,8 @@ export class Gnome {
     this.target = null;
     this.potion = null;
     this.wizard = 0;
+    this.speedT = this.bounceT = this.freeT = 0;
+    this.vy = 0;
     this.burn = this.acid = this.chill = this.frozen = this.immune = 0;
     this.sinceHurt = 99;
     this.saidLow = false;
@@ -379,15 +388,17 @@ export class Gnome {
       const ang = Math.atan2(ax, az) + Math.sin(A.time * 2.1 + this.id * 1.7) * this.wobble;
       this.aimX = Math.sin(ang);
       this.aimZ = Math.cos(ang);
-      this.botPitch = aimPitch(Math.max(d, 1), 0.9 - 0.75 + tgt.pos.y);
+      this.botPitch = aimPitch(Math.max(d, 1), 0.9 - 0.75 + tgt.pos.y - this.pos.y);
       this.hasAim = true;
       const clear = !this.blocked(A, tgt.pos.x, tgt.pos.z);
       this.wantPee = d < RANGE * 0.97 && !scared && clear && !this.locked && this.bladder > 2 && Math.abs(angleDiff(this.yaw, ang)) < 0.35;
     } else {
       // nobody around: stroll between random spots
       this.wanderT -= dt;
+      const bonus = A.bugs.nearestBonus(this.pos.x, this.pos.z, 22);
       const pot = !this.potion ? A.potions.nearest(this.pos.x, this.pos.z, 26) : null;
-      if (pot) this.wander.set(pot.x, 0, pot.z);
+      const goal = bonus ?? pot;
+      if (goal) this.wander.set(goal.x, 0, goal.z);
       else if (this.wanderT <= 0 || Math.hypot(this.wander.x - this.pos.x, this.wander.z - this.pos.z) < 1.5) {
         const lim = Math.max(6, Math.min(A.ringR - 6, HALF - 4));
         this.wander.copy(A.forest.randomFree(lim));
@@ -440,6 +451,13 @@ export class Gnome {
     // statuses, health coming back, and the potion running out
     this.sinceHurt += dt;
     if (this.wizard > 0) { this.wizard -= dt; this.burn = this.acid = this.chill = this.frozen = 0; }
+    this.speedT = Math.max(0, this.speedT - dt);
+    this.freeT = Math.max(0, this.freeT - dt);
+    // bouncing: hop whenever you land, for as long as it lasts
+    if (this.bounceT > 0) { this.bounceT -= dt; if (this.pos.y <= 0.001 && this.frozen <= 0) this.vy = 8; }
+    this.vy -= 24 * dt;
+    this.pos.y += this.vy * dt;
+    if (this.pos.y < 0) { this.pos.y = 0; this.vy = 0; }
     if (this.burn > 0) { this.burn -= dt; this.dot(8 * dt, this.burnBy, A.time); if (this.wet > 0.2) this.burn = Math.min(this.burn, 0.4); }
     if (this.acid > 0) { this.acid -= dt; this.dot(5 * dt, this.acidBy, A.time); }
     if (this.frozen > 0) { this.frozen -= dt; if (this.frozen <= 0) { this.immune = 3; this.chill = 0; } }
@@ -458,7 +476,7 @@ export class Gnome {
     const frozen = A.frozen || this.frozen > 0;
     const mlen = Math.hypot(this.moveX, this.moveZ);
     const scale = mlen > 1 ? 1 / mlen : 1;
-    const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : 1);
+    const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : 1) * (this.speedT > 0 ? 1.55 : 1);
     const tx = frozen ? 0 : this.moveX * scale * speed;
     const tz = frozen ? 0 : this.moveZ * scale * speed;
     const k = 1 - Math.exp(-14 * dt);
@@ -496,13 +514,13 @@ export class Gnome {
     // the stream
     if (this.wantPee && !this.locked && this.bladder > 0 && !frozen) {
       this.peeing = true;
-      this.bladder -= BLADDER_DRAIN * (A.mod === 'bogan' ? 0.35 : 1) * dt;
+      this.bladder -= BLADDER_DRAIN * (A.mod === 'bogan' ? 0.35 : 1) * (this.freeT > 0 ? 0 : 1) * dt;
       const sy = this.isPlayer ? this.assistYaw ?? this.yaw : this.yaw;
       const sp = this.isPlayer ? this.assistPitch ?? this.pitch : this.botPitch;
       const cp = Math.cos(sp);
       const fx = Math.sin(sy);
       const fz = Math.cos(sy);
-      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.potion?.kind ?? 'normal', A.mod === 'disco' ? 1.3 : 1, A.mod === 'bogan' ? 2.2 : 1);
+      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.potion?.kind ?? 'normal', A.mod === 'disco' ? 1.3 : 1, A.mod === 'bogan' ? 2.2 : 1);
       if (this.bladder <= 0) { this.bladder = 0; this.locked = true; this.peeing = false; Gnome.onSay?.(this, 'dry'); }
     } else {
       this.peeing = false;
@@ -529,7 +547,7 @@ export class Gnome {
   private syncVisual(_dt: number) {
     this.root.position.x = this.pos.x;
     this.root.position.z = this.pos.z;
-    if (this.alive) this.root.position.y = Math.abs(Math.sin(this.walkPhase)) * 0.05 * Math.min(1, Math.hypot(this.vel.x, this.vel.z));
+    if (this.alive) this.root.position.y = this.pos.y + Math.abs(Math.sin(this.walkPhase)) * 0.05 * Math.min(1, Math.hypot(this.vel.x, this.vel.z));
     this.root.rotation.y = this.yaw + Math.PI; // the model's face is -z
     if (this.alive) this.root.rotation.x = this.peeing ? 0.22 : 0;
     const sw = Math.sin(this.walkPhase) * 0.7 * Math.min(1, Math.hypot(this.vel.x, this.vel.z) / 2);
@@ -543,8 +561,8 @@ export class Gnome {
     else this.mat.emissive.setRGB(this.wet * 1.4, this.wet * 1.1, 0);
     this.shadow.position.x = this.pos.x;
     this.shadow.position.z = this.pos.z;
-    this.marker.position.set(this.pos.x, 4.5 + Math.sin(this.walkPhase * 0.5 + this.id) * 0.1, this.pos.z);
-    this.bar.position.set(this.pos.x, 3.9, this.pos.z);
+    this.marker.position.set(this.pos.x, this.pos.y + 4.5 + Math.sin(this.walkPhase * 0.5 + this.id) * 0.1, this.pos.z);
+    this.bar.position.set(this.pos.x, this.pos.y + 3.9, this.pos.z);
     const f = Math.max(0, this.hp / MAX_HP);
     this.barFill.scale.set(1.42 * f, 0.18, 1);
     this.barFill.position.x = -0.71 * (1 - f);
