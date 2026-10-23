@@ -1,0 +1,195 @@
+import * as THREE from 'three';
+import type { Gnome, Mod, Say } from './gnomes';
+
+/** Everything the gnomes shout. Lines under 'what:mod' are only used while that silly mode is on. */
+export const LINES: Record<string, string[]> = {
+  spot: [
+    'FOUND YOU, YOU DAMP LITTLE MAN!', 'Oi! Is that a gnome or a puddle?', 'I smell pee. Mostly mine.', 'Come here and be moist!',
+    'Target acquired. Bladder armed.', 'You look dry. FIXING THAT.', 'My bladder has a message for you.', 'Gnome on the horizon! Hat first!',
+    'HELLO FRIEND. PREPARE TO BE SPRINKLED.', 'I have been SAVING this for you.', 'A challenger! Smells like cabbage!', 'Behold! The Fountain of Doom!',
+  ],
+  hit: [
+    'AAAH! WARM!', 'Is that... tea?!', 'My hat! MY HAT!', 'Not the beard!', 'I did NOT consent to this!', 'Squelch!', 'That was a lot of pee!',
+    'Oof! Right in the moustache!', 'MY SOCKS ARE DISGUSTED.', 'Ow! Tickly!', 'I am soaked and I am furious!', 'Mamma mia, that is aromatic!',
+    'You absolute splash goblin!', 'Hot hot HOT... oh. Just pee.', 'Dripping with RAGE!',
+  ],
+  kill: [
+    'GET WRECKED, SPRINKLEBOTTOM!', 'Another one drowned in glory!', 'Hydration complete.', 'Rinse and repeat!', 'FLUSHED.', 'Take that to your grave!',
+    'Puddle for a puddle!', 'I am the wettest gnome alive!', 'Bye bye, soggy boy!', 'That is what you get for being crunchy!', 'GG. Go wee.',
+    'Who is next?! WHO IS DAMP?!', 'Rest in pee.',
+  ],
+  death: [
+    'TELL MY MUM... I WAS FLUSHED!', 'I regret NOTHING! ...okay, a bit.', 'MY BEARD! IT BURNS WITH SHAME!', 'Aaaaarrgh, not like this!', 'I should have gone before we left!',
+    'Cheerio, cruel forest!', 'BLEURGH!', 'I SEE THE GREAT PORTA-LOO IN THE SKY!', 'Gnooooo!', 'Tell the mushrooms... I loved them.', 'I was only here for the snacks!',
+    'Splorch!', 'It was all a dream. A WET dream.', 'I die as I lived: confused.', 'Avenge me! Or do not! Whatever!', 'The beard goes with me!', 'EEEEEEEEP!',
+    'Fare thee well, ye damp world!', 'I am going to a better puddle!', 'Mum said there would be snacks!', 'That is a LOT of liquid!', 'Hat... off... to you...',
+  ],
+  burn: [
+    'MY BUM IS ON FIRE!', 'That was CHILI?! RUDE!', 'Spicy! SPICY!!', 'Hot wee! HOT WEE!', 'Call the fire brigade! Or the wee brigade!',
+    'I am a flaming gnome!', 'Who put jalapenos in the pee?!', 'Pepper spray but WORSE!',
+  ],
+  freeze: [
+    'I cannot feel my beard!', 'Brrrrrr... frozen... wee...', 'I am a gnome-sicle!', 'Frozen solid! Tell nobody!', 'WHY IS THE PEE ICE?!', 'My bits have gone crunchy!',
+  ],
+  melt: [
+    'I am MELTING! MELTIIIING!', 'Acid pee?! WHO RAISED YOU?!', 'My hat is dissolving!', 'Bubbling! I am bubbling!', 'Ow ow ow, sizzle sizzle!',
+  ],
+  lowhp: [
+    'I am a bit damp and a bit dying!', 'Send snacks! And health!', 'Please stop! I will give you a hat!', 'Mummy? MUMMY?!', 'I am fine! I am FINE! (I am not fine.)',
+    'One more drop and I am gone!', 'I am held together by moss!', 'Ten out of ten, would not recommend.',
+  ],
+  dry: [
+    'Out of wee!', 'Bladder empty! Send water!', 'Running on fumes!', 'Anybody got a tinnie?!', 'Dry as a gnome biscuit!', 'I need a drink! For science!', 'The tank is dry!',
+  ],
+  idle: [
+    'I think the mushrooms are watching me.', 'Is this a forest or a very big salad?', 'La la la, I love peeing.', 'Does anyone else hear the trees breathing?',
+    'I named my hat Derek.', 'I wonder what the moon tastes like.', 'This beard is itchy and I like it.', 'My knees say hello.', 'Squelch squelch squelch.',
+    'I saw a worm. It saw me. We both screamed.', 'Anyone for a game of hide and pee?', 'The mist is just spicy clouds.', 'I cannot remember why I am here.',
+    'Hey! The grass is looking at me funny!', 'I would murder a sandwich.', 'Gnome sweet gnome.', 'Time for a wee. As usual.', 'Are mushrooms people?',
+    'I gnu it! I GNU IT!', 'This forest is NOT up to code.', 'My bladder is a rich tapestry.',
+  ],
+  taunt: [
+    'Pee on me, I dare you!', 'Is that all you have?!', 'My granny pees harder than that!', 'Come at me, tiny bladder!', 'You wee like a duck!',
+    'WHO WANTS SOME?!', 'I have seen moister puddles!',
+  ],
+  'chili:potion': ['CHILI WEE! Feel the burn!', 'Fire in the hole! Literally!', 'Hot sauce edition!'],
+  'ice:potion': ['ICE WEE! Brain freeze for all!', 'Cool as a cucumber, wet as a duck!', 'Frosty!'],
+  'acid:potion': ['ACID PEE! Science is fun!', 'Nobody tell the lawyers!', 'Pee, but evil!'],
+  mist: [
+    'THE MIST! IT GROWS!', 'The forest has had ENOUGH of us!', 'Magenta fog! Somebody call a wizard!', 'The mist is hungry!', 'Run! Walk! Panic!',
+  ],
+  // --- disco mode ---
+  'idle:disco': ['Boogie fever! Wee fever!', 'Stayin\' alive! Barely!', 'Do the pee-ga!', 'Funky town, population: damp.', 'Where is the glitter ball?! I need it!', 'Shake that groove thing, gnome!'],
+  'hit:disco': ['Not on the sequins!', 'My disco pants!', 'Too wet to boogie!', 'Ow! My groove!'],
+  'death:disco': ['The disco is over!', 'I die dancing!', 'Turn the music... up...', 'Stayin\' dead!', 'Last dance... SPLASH!'],
+  'kill:disco': ['Boogie down, buddy!', 'That was a smooth move!', 'DANCE FLOOR CLOSED!'],
+  // --- goth mode ---
+  'idle:goth': ['Nothing matters. Also, my feet are wet.', 'The darkness gets me. Also, a rash.', 'I feel things. Mostly damp.', 'Life is pain. And mildew.', 'Why do I even bother peeing?', 'My heart is a black hole. And my hat too.'],
+  'hit:goth': ['It rains in my soul. And my pants.', 'Pain is just poetry.', 'Ugh. Whatever.', 'Eternal sorrow! And wetness!'],
+  'death:goth': ['Finally. Sweet release.', 'Darkness takes me. Again.', 'Nobody understood me. Splash.', 'Tell my cat I was sad.', 'I was already dead inside. Now OUTSIDE.', 'Bury me in black socks.'],
+  'kill:goth': ['Another soul, drowned in sorrow.', 'Cry about it.', 'Dark. Damp. Done.'],
+  // --- bogan mode ---
+  'idle:bogan': ['Chuck us a tinnie, mate!', 'Ya shoulda seen the one that got away.', 'Strewth, it\'s a ripper of a day!', 'She\'ll be right, mate!', 'Wanna go the Maccas run after this?', 'Yeah nah, yeah.', 'Hold my beer, I\'m peeing.', 'Bonza! BONZA!', 'Fair dinkum! A real stinker of a forest!', 'Can\'t see me mullet? That\'s cause it\'s INVISIBLE.'],
+  'hit:bogan': ['Ya cheeky mongrel!', 'Strewth, mate!', 'Me thongs! Me THONGS!', 'Oi! Me tinnie!', 'Yeah nah, that stung!'],
+  'death:bogan': ['Tell the missus I love her... and the ute!', 'Struth, I\'ve carked it!', 'Me mullet! Me MULLET!', 'See ya in the arvo!', 'Dead as a doornail, mate!', 'I\'m off to the great servo in the sky!', 'Not me thongs!'],
+  'kill:bogan': ['GOOD ON YA, MATE! ...I mean, bad.', 'Rack off!', 'Too easy, ya drongo!', 'That\'s ya lot, mate!'],
+};
+
+const BANNER_SUB: Record<Mod, string[]> = {
+  disco: ['Everybody boogie! Pee faster, groove harder.', 'The glitter ball has arrived!', 'Disco inferno! Fast feet, fast flow!'],
+  goth: ['Nothing matters. Health does not creep back.', 'Darkness descends. Hope is for the damp.', 'Eternal gloom. No healing allowed.'],
+  bogan: ['Chuck us a tinnie! Bladder lasts longer, aim goes wonky.', 'Cheers, mate! Drunk aim, big bladder!', 'Bogan hour! Ripper bladder, wobbly stream!'],
+};
+export function modTagline(m: Mod): string {
+  const l = BANNER_SUB[m];
+  return l[Math.floor(Math.random() * l.length)];
+}
+
+interface Bubble {
+  g: Gnome;
+  el: HTMLElement;
+  t: number;
+}
+
+const _v = new THREE.Vector3();
+
+/** Speech bubbles over heads, the player's own lines at the bottom of the screen, and silly voices. */
+export class Banter {
+  private bubbles: Bubble[] = [];
+  private last = new Map<number, number>();
+  private now = 0;
+  private lastAny = -9;
+  private chatterTimer = 0;
+  voices = true;
+
+  constructor(private layer: HTMLElement, private chatter: HTMLElement, private player: Gnome) {}
+
+  /** A gnome says something, if it has not just spoken. `force` skips the per-gnome pause (deaths, kills). */
+  say(g: Gnome, what: Say, mod: Mod | null, force = false) {
+    const gap = this.now - (this.last.get(g.id) ?? -9);
+    if (!force && gap < 3.2) return;
+    if (!force && this.now - this.lastAny < 0.35) return;
+    let key: string = what;
+    if (mod && LINES[`${what}:${mod}`] && Math.random() < 0.55) key = `${what}:${mod}`;
+    const pool = LINES[key] ?? LINES[what];
+    if (!pool) return;
+    this.speak(g, pool[Math.floor(Math.random() * pool.length)], force || what === 'death' || what === 'kill');
+  }
+
+  /** Say a particular line (potion pickups and so on). */
+  sayLine(g: Gnome, key: string) {
+    const pool = LINES[key];
+    if (pool) this.speak(g, pool[Math.floor(Math.random() * pool.length)], true);
+  }
+
+  private speak(g: Gnome, text: string, loud: boolean) {
+    this.last.set(g.id, this.now);
+    this.lastAny = this.now;
+    if (g.isPlayer) {
+      this.chatter.textContent = text;
+      this.chatter.style.opacity = '1';
+      clearTimeout(this.chatterTimer);
+      this.chatterTimer = window.setTimeout(() => (this.chatter.style.opacity = '0'), 2400);
+    } else {
+      // one bubble per gnome, at most six on screen
+      const old = this.bubbles.find((b) => b.g === g);
+      if (old) { old.el.remove(); this.bubbles.splice(this.bubbles.indexOf(old), 1); }
+      if (this.bubbles.length >= 6) { this.bubbles[0].el.remove(); this.bubbles.shift(); }
+      const el = document.createElement('div');
+      el.className = 'bubble';
+      el.textContent = text;
+      el.style.borderColor = '#' + g.color.toString(16).padStart(6, '0');
+      this.layer.appendChild(el);
+      this.bubbles.push({ g, el, t: 2.8 });
+    }
+    // voices: deaths and the player's own lines, and only things near enough to hear
+    if (this.voices && loud && 'speechSynthesis' in window) {
+      const d = Math.hypot(g.pos.x - this.player.pos.x, g.pos.z - this.player.pos.z);
+      if (g.isPlayer || d < 38) this.voice(g, text);
+    }
+  }
+
+  private voice(g: Gnome, text: string) {
+    const ss = window.speechSynthesis;
+    try {
+      if (ss.pending || ss.speaking) return; // one at a time, or the queue falls behind the fight
+      const u = new SpeechSynthesisUtterance(text);
+      const v = ss.getVoices().filter((x) => x.lang.startsWith('en'));
+      if (v.length) u.voice = v[g.id % v.length];
+      u.pitch = 0.5 + ((g.id * 37) % 15) / 10; // 0.5 .. 1.9
+      u.rate = 1.05 + ((g.id * 13) % 6) / 10;
+      u.volume = g.isPlayer ? 0.9 : 0.7;
+      ss.speak(u);
+    } catch { /* some browsers refuse; the bubbles are enough */ }
+  }
+
+  setVoices(on: boolean) {
+    this.voices = on;
+    if (!on && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  }
+
+  clear() {
+    for (const b of this.bubbles) b.el.remove();
+    this.bubbles.length = 0;
+    this.chatter.style.opacity = '0';
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }
+
+  update(dt: number, camera: THREE.Camera) {
+    this.now += dt;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    for (let i = this.bubbles.length - 1; i >= 0; i--) {
+      const b = this.bubbles[i];
+      b.t -= dt;
+      if (b.t <= 0) { b.el.remove(); this.bubbles.splice(i, 1); continue; }
+      _v.set(b.g.pos.x, b.g.alive ? 4.4 : 2, b.g.pos.z);
+      const dist = _v.distanceTo(camera.position);
+      _v.project(camera);
+      const vis = _v.z < 1 && Math.abs(_v.x) < 1.15 && Math.abs(_v.y) < 1.1 && dist < 34;
+      b.el.style.opacity = vis ? String(Math.min(1, b.t * 2)) : '0';
+      const sc = Math.max(0.6, Math.min(1.1, 14 / dist + 0.35));
+      b.el.style.transform = `translate(-50%, -100%) translate(${(_v.x * 0.5 + 0.5) * w}px, ${(-_v.y * 0.5 + 0.5) * h}px) scale(${sc})`;
+    }
+  }
+}

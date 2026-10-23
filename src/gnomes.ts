@@ -3,7 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createGnome } from './gnome';
 import { lit } from './organic';
 import { HALF, type Forest } from './forest';
-import { RANGE, SPEED as DROP_SPEED, GRAVITY, type PeeSystem } from './pee';
+import { RANGE, SPEED as DROP_SPEED, GRAVITY, PEE, type PeeKind, type PeeSystem } from './pee';
+import type { Potions } from './potions';
 
 /** Gnomes are drawn bigger than the first-person game's, so you can see them from above. */
 const VISUAL_SCALE = 1.25;
@@ -26,7 +27,13 @@ export interface Arena {
   camera: THREE.Camera;
   /** Bots wait out the countdown. */
   frozen: boolean;
+  potions: Potions;
+  /** The silly mode that is on right now, if any. */
+  mod: Mod | null;
 }
+
+export type Mod = 'disco' | 'goth' | 'bogan';
+export type Say = 'spot' | 'hit' | 'kill' | 'death' | 'burn' | 'freeze' | 'melt' | 'lowhp' | 'dry' | 'idle' | 'taunt';
 
 // --- cheap models: the gnome baked into three meshes (two legs and a body) ------------------------
 
@@ -97,6 +104,8 @@ export class Gnome {
   static onDeath: ((victim: Gnome, killer: Gnome | null) => void) | null = null;
   /** Somebody got hit (for sound and haptics). */
   static onHurt: ((g: Gnome) => void) | null = null;
+  /** Something worth saying out loud happened to this gnome. */
+  static onSay: ((g: Gnome, what: Say) => void) | null = null;
 
   readonly id = nextId++;
   readonly pos = new THREE.Vector3();
@@ -114,6 +123,20 @@ export class Gnome {
   /** The player's stream can be nudged off the crosshair by the touch aim assist. */
   assistYaw: number | null = null;
   assistPitch: number | null = null;
+
+  /** A potion changes what you pee for a while. */
+  potion: { kind: PeeKind; t: number } | null = null;
+  burn = 0;
+  acid = 0;
+  chill = 0;
+  frozen = 0;
+  private immune = 0;
+  private burnBy: Gnome | null = null;
+  private acidBy: Gnome | null = null;
+  /** Seconds since last hurt: health creeps back after a few quiet seconds. */
+  sinceHurt = 99;
+  regenerating = false;
+  private saidLow = false;
 
   // controls, set by the player's input or the bot brain each frame
   moveX = 0;
@@ -205,6 +228,11 @@ export class Gnome {
     this.deathT = 0;
     this.lastHitBy = null;
     this.target = null;
+    this.potion = null;
+    this.burn = this.acid = this.chill = this.frozen = this.immune = 0;
+    this.sinceHurt = 99;
+    this.saidLow = false;
+    this.regenerating = false;
     this.yaw = Math.atan2(-at.x, -at.z) + (Math.random() - 0.5) * 0.6; // facing the middle
     this.root.visible = this.shadow.visible = this.bar.visible = true;
     this.marker.visible = !this.isPlayer;
@@ -220,12 +248,40 @@ export class Gnome {
     this.syncVisual(0);
   }
 
-  hurt(amount: number, from: Gnome | null, time: number) {
+  /** A droplet of `kind` landed on this gnome. */
+  hit(kind: PeeKind, mul: number, from: Gnome, time: number) {
     if (!this.alive) return;
-    this.hp -= amount;
+    this.sinceHurt = 0;
     this.wet = 0.35;
-    if (from) { this.lastHitBy = from; this.lastHitAt = time; }
+    this.lastHitBy = from;
+    this.lastHitAt = time;
+    const taken = (this.acid > 0 ? 1.25 : 1) * mul;
+    this.hp -= PEE[kind].dmg * taken;
+    if (kind === 'chili') {
+      if (this.burn <= 0) Gnome.onSay?.(this, 'burn');
+      this.burn = 3.2;
+      this.burnBy = from;
+    } else if (kind === 'acid') {
+      if (this.acid <= 0) Gnome.onSay?.(this, 'melt');
+      this.acid = 4.5;
+      this.acidBy = from;
+    } else if (kind === 'ice' && this.frozen <= 0 && this.immune <= 0) {
+      this.chill = Math.min(1, this.chill + 0.045);
+      if (this.chill >= 1) {
+        this.frozen = 2.2;
+        Gnome.onSay?.(this, 'freeze');
+      }
+    }
     Gnome.onHurt?.(this);
+    if (this.hp <= 0) this.die(from, time);
+    else Gnome.onSay?.(this, 'hit');
+  }
+
+  /** Burning and acid: quiet damage over time. */
+  private dot(amount: number, from: Gnome | null, time: number) {
+    this.hp -= amount;
+    this.sinceHurt = 0;
+    if (from) { this.lastHitBy = from; this.lastHitAt = time; }
     if (this.hp <= 0) this.die(from, time);
   }
 
@@ -233,6 +289,7 @@ export class Gnome {
   mist(amount: number, time: number) {
     if (!this.alive) return;
     this.hp -= amount;
+    this.sinceHurt = 0;
     this.wet = 0.2;
     if (this.hp <= 0) this.die(time - this.lastHitAt < 6 ? this.lastHitBy : null, time);
   }
@@ -243,7 +300,9 @@ export class Gnome {
     this.diedAt = time;
     this.deathT = 0;
     this.peeing = this.wantPee = false;
-    if (killer && killer !== this) killer.kills++;
+    this.burn = this.acid = this.chill = this.frozen = 0;
+    if (killer && killer !== this) { killer.kills++; Gnome.onSay?.(killer, 'kill'); }
+    Gnome.onSay?.(this, 'death');
     this.marker.visible = this.bar.visible = false;
     Gnome.onDeath?.(this, killer && killer !== this ? killer : null);
   }
@@ -259,6 +318,7 @@ export class Gnome {
       const d = Math.hypot(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
       if (d < bd - (g === cur ? 4 : 0)) { bd = d; best = g; }
     }
+    if (best && best !== cur) Gnome.onSay?.(this, 'spot');
     this.target = best;
   }
 
@@ -322,7 +382,9 @@ export class Gnome {
     } else {
       // nobody around: stroll between random spots
       this.wanderT -= dt;
-      if (this.wanderT <= 0 || Math.hypot(this.wander.x - this.pos.x, this.wander.z - this.pos.z) < 1.5) {
+      const pot = !this.potion ? A.potions.nearest(this.pos.x, this.pos.z, 26) : null;
+      if (pot) this.wander.set(pot.x, 0, pot.z);
+      else if (this.wanderT <= 0 || Math.hypot(this.wander.x - this.pos.x, this.wander.z - this.pos.z) < 1.5) {
         const lim = Math.max(6, Math.min(A.ringR - 6, HALF - 4));
         this.wander.copy(A.forest.randomFree(lim));
         this.wanderT = 5 + Math.random() * 4;
@@ -371,13 +433,27 @@ export class Gnome {
       return;
     }
 
+    // statuses, health coming back, and the potion running out
+    this.sinceHurt += dt;
+    if (this.burn > 0) { this.burn -= dt; this.dot(8 * dt, this.burnBy, A.time); if (this.wet > 0.2) this.burn = Math.min(this.burn, 0.4); }
+    if (this.acid > 0) { this.acid -= dt; this.dot(5 * dt, this.acidBy, A.time); }
+    if (this.frozen > 0) { this.frozen -= dt; if (this.frozen <= 0) { this.immune = 3; this.chill = 0; } }
+    else this.chill = Math.max(0, this.chill - dt * 0.3);
+    this.immune = Math.max(0, this.immune - dt);
+    if (this.potion && (this.potion.t -= dt) <= 0) this.potion = null;
+    this.regenerating = this.alive && this.sinceHurt > 4 && this.burn <= 0 && this.acid <= 0 && this.hp < MAX_HP && A.mod !== 'goth';
+    if (this.regenerating) this.hp = Math.min(MAX_HP, this.hp + 7 * dt);
+    if (this.hp < 25 && !this.saidLow) { this.saidLow = true; Gnome.onSay?.(this, 'lowhp'); }
+    if (this.hp > 55) this.saidLow = false;
+    if (!this.alive) return;
+
     if (!this.isPlayer) this.thinkWithAvoid(dt, A);
 
     // movement
-    const frozen = A.frozen;
+    const frozen = A.frozen || this.frozen > 0;
     const mlen = Math.hypot(this.moveX, this.moveZ);
     const scale = mlen > 1 ? 1 / mlen : 1;
-    const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1);
+    const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : 1);
     const tx = frozen ? 0 : this.moveX * scale * speed;
     const tz = frozen ? 0 : this.moveZ * scale * speed;
     const k = 1 - Math.exp(-14 * dt);
@@ -415,14 +491,14 @@ export class Gnome {
     // the stream
     if (this.wantPee && !this.locked && this.bladder > 0 && !frozen) {
       this.peeing = true;
-      this.bladder -= BLADDER_DRAIN * dt;
+      this.bladder -= BLADDER_DRAIN * (A.mod === 'bogan' ? 0.35 : 1) * dt;
       const sy = this.isPlayer ? this.assistYaw ?? this.yaw : this.yaw;
       const sp = this.isPlayer ? this.assistPitch ?? this.pitch : this.botPitch;
       const cp = Math.cos(sp);
       const fx = Math.sin(sy);
       const fz = Math.cos(sy);
-      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt);
-      if (this.bladder <= 0) { this.bladder = 0; this.locked = true; this.peeing = false; }
+      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.potion?.kind ?? 'normal', A.mod === 'disco' ? 1.3 : 1, A.mod === 'bogan' ? 2.2 : 1);
+      if (this.bladder <= 0) { this.bladder = 0; this.locked = true; this.peeing = false; Gnome.onSay?.(this, 'dry'); }
     } else {
       this.peeing = false;
       this.bladder = Math.min(100, this.bladder + BLADDER_REGEN * dt);
@@ -449,12 +525,17 @@ export class Gnome {
     this.root.position.x = this.pos.x;
     this.root.position.z = this.pos.z;
     if (this.alive) this.root.position.y = Math.abs(Math.sin(this.walkPhase)) * 0.05 * Math.min(1, Math.hypot(this.vel.x, this.vel.z));
-    this.root.rotation.y = this.yaw;
+    this.root.rotation.y = this.yaw + Math.PI; // the model's face is -z
     if (this.alive) this.root.rotation.x = this.peeing ? 0.22 : 0;
     const sw = Math.sin(this.walkPhase) * 0.7 * Math.min(1, Math.hypot(this.vel.x, this.vel.z) / 2);
     this.legL.rotation.x = sw;
     this.legR.rotation.x = -sw;
-    this.mat.emissive.setRGB(this.wet * 1.4, this.wet * 1.1, 0);
+    // glow: ice, fire and acid show on the body; otherwise a yellow flash when wet
+    if (this.frozen > 0) this.mat.emissive.setRGB(0.25, 0.6, 0.9);
+    else if (this.burn > 0) this.mat.emissive.setRGB(0.7 + 0.3 * Math.sin(this.walkPhase * 9 + this.id), 0.25, 0);
+    else if (this.acid > 0) this.mat.emissive.setRGB(0.1, 0.55, 0.05);
+    else if (this.chill > 0.1) this.mat.emissive.setRGB(0.1 * this.chill, 0.35 * this.chill, 0.55 * this.chill);
+    else this.mat.emissive.setRGB(this.wet * 1.4, this.wet * 1.1, 0);
     this.shadow.position.x = this.pos.x;
     this.shadow.position.z = this.pos.z;
     this.marker.position.set(this.pos.x, 4.5 + Math.sin(this.walkPhase * 0.5 + this.id) * 0.1, this.pos.z);
@@ -465,6 +546,12 @@ export class Gnome {
     this.bar.visible = this.alive && !this.isPlayer;
     // you cannot see your own gnome from inside its head
     if (this.isPlayer && this.alive) this.root.visible = this.shadow.visible = false;
+  }
+
+  /** Mode colours for the body (null = the gnome's own colours). */
+  setTint(rgb: [number, number, number] | null) {
+    if (rgb) this.mat.color.setRGB(rgb[0], rgb[1], rgb[2]);
+    else this.mat.color.setRGB(1, 1, 1);
   }
 
   /** Face the bar towards the camera (called once per frame by the game). */

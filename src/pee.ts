@@ -11,6 +11,26 @@ export const RATE = 55; // droplets per second
 export const RANGE = 11;
 const PUDDLES = 64;
 
+export type PeeKind = 'normal' | 'chili' | 'ice' | 'acid';
+
+export interface PeeDef {
+  name: string;
+  color: number;
+  /** hit points per droplet */
+  dmg: number;
+  blurb: string;
+}
+
+export const PEE: Record<PeeKind, PeeDef> = {
+  normal: { name: 'Plain Pee', color: 0xf2d83a, dmg: 0.6, blurb: 'Classic.' },
+  chili: { name: 'Chili Wee', color: 0xff5a14, dmg: 0.32, blurb: 'Sets them on fire.' },
+  ice: { name: 'Ice Wee', color: 0x9fe8ff, dmg: 0.38, blurb: 'Slows, then freezes solid.' },
+  acid: { name: 'Acid Pee', color: 0x7aff2a, dmg: 0.4, blurb: 'Melts, and they take more from everything.' },
+};
+export const POTION_KINDS: PeeKind[] = ['chili', 'ice', 'acid'];
+const KINDS: PeeKind[] = ['normal', 'chili', 'ice', 'acid'];
+const KCOL = KINDS.map((k) => new THREE.Color(PEE[k].color));
+
 const dummy = new THREE.Object3D();
 const C_PLAYER = new THREE.Color(0xfff04a);
 const C_BOT = new THREE.Color(0xe0c020);
@@ -26,6 +46,7 @@ export class PeeSystem {
   private vz = new Float32Array(MAX);
   private life = new Float32Array(MAX);
   private owner: (Gnome | null)[] = new Array(MAX).fill(null);
+  private kind = new Uint8Array(MAX);
   private count = 0;
   private acc = new Map<number, number>();
 
@@ -66,16 +87,17 @@ export class PeeSystem {
   }
 
   /** Emit this frame's share of a stream from gnome `g`, leaving (ox, oy, oz) along the unit direction (dx, dy, dz). */
-  emit(g: Gnome, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, dt: number) {
-    const a = (this.acc.get(g.id) ?? 0) + dt * RATE;
+  emit(g: Gnome, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, dt: number, kind: PeeKind = 'normal', rate = 1, spreadMul = 1) {
+    const a = (this.acc.get(g.id) ?? 0) + dt * RATE * rate;
+    const ki = KINDS.indexOf(kind);
     const n = Math.floor(a);
     this.acc.set(g.id, a - n);
-    const col = g.isPlayer ? C_PLAYER : C_BOT;
+    const col = ki > 0 ? KCOL[ki] : g.isPlayer ? C_PLAYER : C_BOT;
     for (let k = 0; k < n && this.count < MAX; k++) {
       const i = this.count++;
       const sp = SPEED * (0.96 + Math.random() * 0.08);
       const back = ((k + Math.random()) / Math.max(1, n)) * dt; // spread this frame's droplets along its travel
-      const spread = 0.035 * SPEED;
+      const spread = 0.035 * SPEED * spreadMul;
       this.vx[i] = dx * sp + (Math.random() - 0.5) * spread;
       this.vy[i] = dy * sp + (Math.random() - 0.5) * spread;
       this.vz[i] = dz * sp + (Math.random() - 0.5) * spread;
@@ -84,6 +106,7 @@ export class PeeSystem {
       this.pz[i] = oz + this.vz[i] * back;
       this.life[i] = LIFE;
       this.owner[i] = g;
+      this.kind[i] = ki;
       this.mesh.setColorAt(i, col);
     }
   }
@@ -109,7 +132,8 @@ export class PeeSystem {
       this.vx[i] = this.vx[last]; this.vy[i] = this.vy[last]; this.vz[i] = this.vz[last];
       this.life[i] = this.life[last];
       this.owner[i] = this.owner[last];
-      this.mesh.setColorAt(i, this.owner[i]!.isPlayer ? C_PLAYER : C_BOT);
+      this.kind[i] = this.kind[last];
+      this.mesh.setColorAt(i, this.kind[i] > 0 ? KCOL[this.kind[i]] : this.owner[i]!.isPlayer ? C_PLAYER : C_BOT);
     }
     this.owner[last] = null;
   }
@@ -123,7 +147,7 @@ export class PeeSystem {
     this.pSize[i] = 0.8 + Math.random() * 0.9;
   }
 
-  update(dt: number, forest: Forest, targets: Gnome[], onHit: (victim: Gnome, shooter: Gnome, x: number, z: number) => void) {
+  update(dt: number, forest: Forest, targets: Gnome[], onHit: (victim: Gnome, shooter: Gnome, kind: PeeKind, x: number, z: number) => void) {
     for (let i = this.count - 1; i >= 0; i--) {
       this.life[i] -= dt;
       if (this.life[i] <= 0) { this.remove(i); continue; }
@@ -147,7 +171,7 @@ export class PeeSystem {
         if (ddx * ddx + ddz * ddz < 0.45 && y < 2.4) { hit = t; break; }
       }
       if (hit) {
-        onHit(hit, shooter, x, z);
+        onHit(hit, shooter, KINDS[this.kind[i]], x, z);
         this.remove(i);
       }
     }

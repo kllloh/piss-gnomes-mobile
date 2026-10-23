@@ -77,10 +77,16 @@ export class Sfx {
   private root = 38; // MIDI D2
   private lastBeat = -9;
   private delay!: DelayNode;
+  /** Which silly mode the soundtrack is dressed up as. */
+  mood: 'none' | 'disco' | 'goth' | 'bogan' = 'none';
 
   /** 0..1, jumps on each beat and fades: the visuals pulse with it. */
   get beat(): number {
     return this.ctx ? Math.exp(-(this.ctx.currentTime - this.lastBeat) * 5) : 0;
+  }
+
+  setMood(m: 'none' | 'disco' | 'goth' | 'bogan') {
+    this.mood = m;
   }
 
   startMusic() {
@@ -125,12 +131,43 @@ export class Sfx {
   private schedule() {
     if (!this.ctx) return;
     const SCALE = [0, 1, 4, 5, 7, 8, 10, 12, 13, 16, 17, 19];
-    const sixteenth = 60 / 108 / 4;
+    const bpm = this.mood === 'disco' ? 122 : this.mood === 'goth' ? 78 : this.mood === 'bogan' ? 118 : 108;
+    const sixteenth = 60 / bpm / 4;
     while (this.nextStep < this.ctx.currentTime + 0.25) {
       const t = this.nextStep;
       const s = this.step;
       if (s % 4 === 0) { this.lastBeat = t; }
       if (s % 16 === 0 && Math.random() < 0.5) this.root = [38, 38, 41, 36, 43][Math.floor(Math.random() * 5)];
+      if (this.mood === 'disco') {
+        // four on the floor, off-beat hats and an octave-bouncing bass
+        if (s % 4 === 0) this.tone(170, 42, 0.16, 'sine', 0.32);
+        if (s % 4 === 2) this.tone(7000, 6000, 0.04, 'square', 0.04);
+        if (s % 2 === 0) this.note(this.root + (s % 4 === 0 ? 0 : 12), t, 0.16, 'sawtooth', 0.14, 900, false);
+        if (s % 8 === 4 || s % 8 === 7) this.note(this.root + 31 + SCALE[(s * 3) % 7], t, 0.2, 'square', 0.05, 2600, true);
+        this.nextStep += sixteenth;
+        this.step = (this.step + 1) % 224;
+        continue;
+      }
+      if (this.mood === 'bogan') {
+        // pub rock: fuzzy power chords and a stomp
+        if (s % 8 === 0 || s % 8 === 6) {
+          for (const iv of [0, 7, 12]) this.note(this.root + 12 + iv, t, 0.5, 'sawtooth', 0.09, 1500, false);
+          this.tone(130, 45, 0.14, 'sine', 0.3);
+        }
+        if (s % 8 === 4) this.tone(200, 90, 0.1, 'square', 0.12);
+        this.nextStep += sixteenth;
+        this.step = (this.step + 1) % 224;
+        continue;
+      }
+      if (this.mood === 'goth') {
+        // slow, low and minor
+        if (s % 16 === 0) this.note(this.root + 12, t, 2.4, 'sawtooth', 0.1, 500, true);
+        if (s % 16 === 8) this.note(this.root + 15, t, 2.0, 'sine', 0.1, 900, true);
+        if (s % 4 === 0) this.note(this.root - 12, t, 0.5, 'sine', 0.2, 300, false);
+        this.nextStep += sixteenth;
+        this.step = (this.step + 1) % 224;
+        continue;
+      }
       // bass on the beat, one octave drop sometimes
       if (s % 4 === 0) this.note(this.root - (s % 8 === 0 ? 0 : 12 * (Math.random() < 0.3 ? 1 : 0)), t, 0.34, 'sawtooth', 0.2, 700, false);
       // 7-step arpeggio loop against the 16-step bar: it never lines up the same way twice

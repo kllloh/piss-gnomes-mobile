@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { Forest, HALF } from './forest';
-import { Gnome, MAX_HP, EYE, aimPitch, type Arena } from './gnomes';
+import { Gnome, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
+import { Potions } from './potions';
+import { Banter, modTagline } from './talk';
 import { Trip } from './trip';
-import { PeeSystem, RANGE } from './pee';
+import { PeeSystem, RANGE, PEE } from './pee';
 import { Input } from './input';
 import { Sfx } from './audio';
 
-const DROP_DMG = 0.6; // hit points per droplet
 const MIST_WAIT = 20; // seconds before the mist starts to close
 const MIST_TIME = 150; // seconds it takes to close
 const MIST_START = 58;
@@ -23,8 +24,10 @@ let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
 renderer.setPixelRatio(pixelRatio);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x140a2e, 16, 78);
-scene.add(new THREE.HemisphereLight(0xc8b8ff, 0x2a5a48, 1.25));
+const fog = new THREE.Fog(0x140a2e, 16, 78);
+scene.fog = fog;
+const hemi = new THREE.HemisphereLight(0xc8b8ff, 0x2a5a48, 1.25);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d0, 1.5);
 sun.position.set(-0.4, 1, 0.5);
 scene.add(sun);
@@ -70,8 +73,12 @@ const botNames = NAMES.slice().sort(() => Math.random() - 0.5);
 for (let i = 1; i < 10; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i], false));
 const gnomes: Gnome[] = [player, ...bots];
 
-const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true };
+const potions = new Potions(scene, forest);
+const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true, potions, mod: null };
 fit();
+
+const banter = new Banter($('bubbles'), $('chatter'), player);
+Gnome.onSay = (g, what) => banter.say(g, what, arena.mod, what === 'death' || what === 'kill');
 
 // --- input ------------------------------------------------------------------------------------------------
 
@@ -182,6 +189,14 @@ function startMatch() {
   overTimer = 0;
   state = 'countdown';
   paused = false;
+  curMod = null;
+  modAmt = 0;
+  modNext = 14 + Math.random() * 6;
+  arena.mod = null;
+  sfx.setMood('none');
+  potions.reset();
+  banter.clear();
+  idleT = 4;
   $('feed').innerHTML = '';
   document.body.classList.remove('inmenu');
   $('menu').classList.remove('on');
@@ -233,6 +248,9 @@ function ordinal(n: number): string {
 
 function endMatch() {
   state = 'over';
+  curMod = null;
+  arena.mod = null;
+  sfx.setMood('none');
   const winner = aliveGnomes()[0] ?? null;
   const won = !!winner && winner.isPlayer;
   if (won) { playerPlace = 1; sfx.win(); }
@@ -290,6 +308,7 @@ $('btnResume').addEventListener('click', () => pause(false));
 $('btnRestart').addEventListener('click', () => { paused = false; startMatch(); });
 $('btnSound').addEventListener('click', () => {
   sfx.setMuted(!sfx.muted);
+  banter.setVoices(!sfx.muted);
   $('btnSound').innerHTML = sfx.muted ? '&#128263;' : '&#128266;';
 });
 window.addEventListener('keydown', (e) => { if (e.code === 'Escape') pause(!paused); if (e.code === 'Enter' && state === 'menu') $('btnPlay').click(); });
@@ -301,8 +320,23 @@ document.addEventListener('touchmove', (e) => { if ((e.target as HTMLElement).cl
 // --- the frame -----------------------------------------------------------------------------------------------------------------
 
 let hintsFaded = false;
+// silly modes
+const MOD_INDEX: Record<Mod, number> = { disco: 1, goth: 2, bogan: 3 };
+let curMod: Mod | null = null;
+let shownMod: Mod = 'disco';
+let lastMod: Mod | null = null;
+let modAmt = 0;
+let modUntil = 0;
+let modNext = 14;
+let idleT = 4;
+let psy = 0;
+let tinted = false;
+const baseSky = new THREE.Color(0xc8b8ff);
+const baseGround = new THREE.Color(0x2a5a48);
+const baseSun = new THREE.Color(0xfff2d0);
+const tmpA = new THREE.Color();
+const tmpB = new THREE.Color();
 const landing = { x: 0, z: 0 };
-let warp = 0.55;
 const fogCol = new THREE.Color();
 const landMark = new THREE.Mesh(
   new THREE.RingGeometry(0.35, 0.55, 20).rotateX(-Math.PI / 2),
@@ -348,6 +382,10 @@ function playerControls() {
       player.assistPitch = player.pitch + (aimPitch(d, 0.15) - player.pitch) * 0.5;
     }
   }
+  if (arena.mod === 'bogan' && modAmt > 0.3) {
+    // the tinnies are working: the stream wanders
+    player.assistYaw = (player.assistYaw ?? player.yaw) + Math.sin(arena.time * 1.9) * 0.1 + Math.sin(arena.time * 0.7) * 0.05;
+  }
   if (!hintsFaded && (input.moveX || input.moveF || input.fire)) {
     hintsFaded = true;
     $('hintL').style.opacity = $('hintR').style.opacity = '0';
@@ -358,7 +396,19 @@ function updateHud() {
   $('hpfill').style.width = `${Math.max(0, (player.hp / MAX_HP) * 100)}%`;
   $('blfill').style.width = `${player.bladder}%`;
   $('bars').classList.toggle('locked', player.locked);
-  $('blmsg').textContent = player.locked ? 'BLADDER EMPTY... REFILLING' : 'HEALTH · BLADDER';
+  $('blmsg').textContent = player.locked ? 'BLADDER EMPTY... REFILLING' : player.regenerating ? 'HEALTH ✚ · BLADDER' : 'HEALTH · BLADDER';
+  const pot = $('potion');
+  if (player.potion) {
+    const info = PEE[player.potion.kind];
+    pot.style.display = 'block';
+    pot.style.borderColor = '#' + info.color.toString(16).padStart(6, '0');
+    pot.textContent = `${info.name.toUpperCase()} ${Math.ceil(player.potion.t)}s`;
+  } else pot.style.display = 'none';
+  const chip = $('modchip');
+  if (curMod && state === 'play') {
+    chip.style.display = 'block';
+    chip.textContent = `${curMod.toUpperCase()} MODE ${fmt(Math.max(0, modUntil - arena.time))}`;
+  } else chip.style.display = 'none';
   const mist = $('mist');
   if (!mistStarted) {
     mist.textContent = `MIST IN ${fmt(Math.max(0, MIST_WAIT - arena.time))}`;
@@ -400,7 +450,7 @@ function frame(nowMs: number, lastMs: number) {
       // the mist
       if (state === 'play') {
         if (arena.time >= MIST_WAIT) {
-          if (!mistStarted) { mistStarted = true; banner('THE MIST IS CLOSING IN', 'stay inside the circle', 2400); sfx.alarm(); }
+          if (!mistStarted) { mistStarted = true; banner('THE MIST IS CLOSING IN', 'stay inside the circle', 2400); sfx.alarm(); const talkers = bots.filter((b) => b.alive); if (talkers.length) banter.sayLine(talkers[Math.floor(Math.random() * talkers.length)], 'mist'); }
           const p = Math.min(1, (arena.time - MIST_WAIT) / MIST_TIME);
           arena.ringR = MIST_START + (MIST_END - MIST_START) * p;
           const dmg = (3 + 8 * p) * dt;
@@ -409,10 +459,47 @@ function frame(nowMs: number, lastMs: number) {
       }
 
       for (const g of gnomes) g.update(dt, arena);
-      pee.update(dt, forest, gnomes, (victim, shooter) => {
+      pee.update(dt, forest, gnomes, (victim, shooter, kind) => {
         if (god && victim.isPlayer) return;
-        victim.hurt(DROP_DMG * shooter.dmg, shooter, arena.time);
+        victim.hit(kind, shooter.dmg, shooter, arena.time);
       });
+      potions.update(dt, nowMs / 1000, gnomes, (g, kind) => {
+        banter.sayLine(g, `${kind}:potion`);
+        if (g.isPlayer) {
+          sfx.pop();
+          banner(PEE[kind].name.toUpperCase() + '!', PEE[kind].blurb, 1700);
+        }
+      });
+      if (state === 'play') {
+        // idle muttering from whoever is nearby, now and then
+        idleT -= dt;
+        if (idleT <= 0) {
+          idleT = 2.2 + Math.random() * 3;
+          const near = bots.filter((b) => b.alive && Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z) < 30);
+          if (near.length) banter.say(near[Math.floor(Math.random() * near.length)], Math.random() < 0.25 ? 'taunt' : 'idle', arena.mod);
+          else if (player.alive && Math.random() < 0.12) banter.say(player, 'idle', arena.mod);
+        }
+        // a random silly mode drops in every so often
+        if (curMod && arena.time > modUntil) {
+          feedLine('Back to normal... for now.');
+          curMod = null;
+          arena.mod = null;
+          sfx.setMood('none');
+          modNext = arena.time + 16 + Math.random() * 12;
+        } else if (!curMod && arena.time >= modNext) {
+          const pool = (['disco', 'goth', 'bogan'] as Mod[]).filter((m) => m !== lastMod);
+          curMod = pool[Math.floor(Math.random() * pool.length)];
+          lastMod = curMod;
+          shownMod = curMod;
+          arena.mod = curMod;
+          modUntil = arena.time + 32 + Math.random() * 10;
+          sfx.setMood(curMod);
+          banner(curMod.toUpperCase() + ' MODE!', modTagline(curMod), 3200);
+          feedLine(`<b>${curMod.toUpperCase()} MODE</b>`);
+          sfx.alarm();
+          for (const b of bots.filter((x) => x.alive).slice(0, 2)) banter.say(b, 'idle', curMod, true);
+        }
+      }
 
       // sound of everybody's streams
       let others = 0;
@@ -459,7 +546,12 @@ function frame(nowMs: number, lastMs: number) {
     camera.position.set(focus.pos.x, EYE + bob + (focus.alive ? 0 : 0.4), focus.pos.z);
     camera.rotation.set(focus.alive ? (focus === player ? focus.pitch : -0.04) : -0.4, focus.yaw + Math.PI, 0);
   }
+  if (shownMod === 'bogan' && modAmt > 0.01) {
+    camera.rotation.z = Math.sin(t * 0.9) * 0.05 * modAmt;
+    camera.rotation.y += Math.sin(t * 0.6) * 0.03 * modAmt;
+  } else camera.rotation.z = 0;
   for (const g of gnomes) g.billboard(camera);
+  banter.update(dt, camera);
 
   // the landing marker: where your stream will come down
   if (state !== 'menu' && player.alive) {
@@ -476,15 +568,53 @@ function frame(nowMs: number, lastMs: number) {
   mistWall.scale.set(arena.ringR, 1, arena.ringR);
   mistLine.scale.set(arena.ringR, 1, arena.ringR);
   forest.update(dt, t, 1e5, 1e5); // the leaves only shrank away from the top-down camera
-  scene.fog!.color.copy(trip.horizon(t, fogCol));
 
-  // the trip: sky, spores, and a warp that gets stronger the more damage you have taken
+  // the silly modes: lights, colours, and tints on the gnomes
+  const target = curMod && state === 'play' ? 1 : 0;
+  modAmt += Math.max(-dt * 1.5, Math.min(dt * 1.5, target - modAmt));
+  trip.mode = MOD_INDEX[shownMod];
+  trip.modeAmt = modAmt;
+  if (modAmt > 0.001) {
+    let sky = baseSky, ground = baseGround, sunC = baseSun, hi = 1.25, si = 1.5, near = 16, far = 78;
+    if (shownMod === 'disco') { sky = tmpA.setHSL((t * 0.15) % 1, 0.8, 0.6); sunC = tmpB.setHSL((t * 0.3 + 0.5) % 1, 0.9, 0.6); hi = 1.6; si = 1.8; }
+    else if (shownMod === 'goth') { sky = tmpA.setHex(0x6a5a9a); ground = tmpB.setHex(0x120a1a); sunC = sunC.clone().setHex(0x9a7aff); hi = 0.85; si = 0.6; near = 6; far = 50; }
+    else { sky = tmpA.setHex(0xffc890); ground = tmpB.setHex(0x6a4a20); sunC = sunC.clone().setHex(0xffa050); hi = 1.35; si = 1.9; }
+    hemi.color.copy(baseSky).lerp(sky, modAmt);
+    hemi.groundColor.copy(baseGround).lerp(ground, modAmt);
+    hemi.intensity = 1.25 + (hi - 1.25) * modAmt;
+    sun.color.copy(baseSun).lerp(sunC, modAmt);
+    sun.intensity = 1.5 + (si - 1.5) * modAmt;
+    fog.near = 16 + (near - 16) * modAmt;
+    fog.far = 78 + (far - 78) * modAmt;
+    for (const g of gnomes) {
+      if (shownMod === 'disco') { tmpA.setHSL((t * 0.2 + g.id * 0.1) % 1, 0.9, 0.6); g.setTint([1 + (tmpA.r * 1.4 - 1) * modAmt, 1 + (tmpA.g * 1.4 - 1) * modAmt, 1 + (tmpA.b * 1.4 - 1) * modAmt]); }
+      else if (shownMod === 'goth') { const k = 1 - 0.78 * modAmt; g.setTint([k, k, k * 1.1]); }
+      else g.setTint([1 + 0.2 * modAmt, 1 - 0.05 * modAmt, 1 - 0.35 * modAmt]);
+    }
+    tinted = true;
+  } else if (tinted) {
+    tinted = false;
+    hemi.color.copy(baseSky);
+    hemi.groundColor.copy(baseGround);
+    hemi.intensity = 1.25;
+    sun.color.copy(baseSun);
+    sun.intensity = 1.5;
+    fog.near = 16;
+    fog.far = 78;
+    for (const g of gnomes) g.setTint(null);
+  }
+  // the world is a normal night forest until you are hurt; low health is what makes it psychedelic
   const beat = sfx.beat;
-  const hurtNow = state === 'menu' ? 0 : 1 - Math.max(0, player.hp) / MAX_HP;
+  const hpNow = state === 'menu' ? 1 : Math.max(0, player.hp) / MAX_HP;
   const out = state !== 'menu' && player.alive && Math.hypot(player.pos.x, player.pos.z) > arena.ringR;
-  warp += ((0.55 + hurtNow * 0.9 + (out ? 0.5 : 0)) - warp) * Math.min(1, dt * 2);
+  let psyT = Math.max(0, Math.min(1, (0.72 - hpNow) / 0.5));
+  if (out) psyT = Math.max(psyT, 0.7);
+  if (state === 'menu') psyT = 0.85; // the menu shows off
+  psy += (psyT - psy) * Math.min(1, dt * 2.5);
+  trip.psy = psy;
+  fog.color.copy(trip.horizon(t, fogCol));
   trip.update(t, camera.position, beat);
-  trip.render(scene, camera, t, warp, beat, 0);
+  trip.render(scene, camera, t, psy * 1.3, beat, 0);
 }
 
 // adaptive quality: if a phone struggles, render fewer pixels, then tone the trip down, rather than stutter
@@ -510,4 +640,4 @@ function loop(now: number) {
 requestAnimationFrame((t) => { last = t; loop(t); });
 
 // a little handle for testing
-(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, get state() { return state; } };
+(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, mod: (m: Mod) => { curMod = m; lastMod = m; shownMod = m; arena.mod = m; modUntil = arena.time + 60; sfx.setMood(m); }, get state() { return state; } };
