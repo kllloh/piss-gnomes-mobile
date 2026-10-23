@@ -320,6 +320,11 @@ export class Gnome {
     Gnome.onDeath?.(this, killer && killer !== this ? killer : null);
   }
 
+  /** A hop. Only from the ground, and not while frozen. */
+  jump() {
+    if (this.alive && this.pos.y <= 0.02 && this.frozen <= 0) this.vy = 8;
+  }
+
   // --- the bot brain -------------------------------------------------------------------------------
 
   private pickTarget(A: Arena) {

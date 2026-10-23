@@ -36,7 +36,9 @@ export class Input {
   private btnFire = false;
   private stickUi: { base: HTMLElement; knob: HTMLElement };
 
-  constructor(private el: HTMLElement, private peeBtn: HTMLElement) {
+  private jumpPending = false;
+
+  constructor(private el: HTMLElement, private peeBtn: HTMLElement, private jumpBtn: HTMLElement) {
     const base = document.getElementById('stickL')!;
     this.stickUi = { base, knob: base.querySelector('.knob') as HTMLElement };
 
@@ -53,13 +55,28 @@ export class Input {
     peeBtn.addEventListener('pointercancel', bu);
     peeBtn.addEventListener('lostpointercapture', bu);
 
+    jumpBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.touch = true;
+      this.jumpPending = true;
+      jumpBtn.classList.add('on');
+      try { jumpBtn.setPointerCapture(e.pointerId); } catch { /* fine */ }
+    });
+    const ju = () => jumpBtn.classList.remove('on');
+    jumpBtn.addEventListener('pointerup', ju);
+    jumpBtn.addEventListener('pointercancel', ju);
+    jumpBtn.addEventListener('lostpointercapture', ju);
+
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === this.el) {
         this.lookYaw += e.movementX * MOUSE_LOOK;
         this.lookPitch -= e.movementY * MOUSE_LOOK;
       }
     });
-    window.addEventListener('keydown', (e) => { this.keys.add(e.code); if (e.code === 'Space') e.preventDefault(); });
+    window.addEventListener('keydown', (e) => {
+      this.keys.add(e.code);
+      if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) this.jumpPending = true; }
+    });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => { this.keys.clear(); this.mouseFire = false; this.release(); });
   }
@@ -147,7 +164,14 @@ export class Input {
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) mf -= 1;
     this.moveX = mx;
     this.moveF = mf;
-    this.fire = this.btnFire || this.mouseFire || this.keys.has('Space');
+    this.fire = this.btnFire || this.mouseFire || this.keys.has('KeyF');
+  }
+
+  /** Was jump pressed since the last call? */
+  takeJump(): boolean {
+    const j = this.jumpPending;
+    this.jumpPending = false;
+    return j;
   }
 
   /** Take (and clear) the look movement collected so far. */

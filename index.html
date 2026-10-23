@@ -29,10 +29,12 @@
   #crosshair::after { top: 8px; left: 0; height: 2px; width: 18px; }
   #peeBtn { position: fixed; right: calc(4vmin + var(--sr)); bottom: calc(5vmin + var(--sb)); width: 24vmin; height: 24vmin; min-width: 84px; min-height: 84px; border-radius: 50%; z-index: 9; font-size: clamp(16px, 3.6vmin, 26px); letter-spacing: 3px; border: 3px solid #ffd23c; background: radial-gradient(circle, rgba(255,214,60,.5), rgba(255,140,30,.22)); box-shadow: 0 0 18px rgba(255,214,60,.7); touch-action: none; user-select: none; -webkit-user-select: none; }
   #peeBtn.on { background: radial-gradient(circle, rgba(255,240,100,.85), rgba(255,170,30,.5)); transform: scale(.95); }
-  body.desktop #peeBtn { display: none; }
-  body.inmenu #peeBtn, body.inmenu #crosshair { display: none; }
+  #jumpBtn { position: fixed; left: calc(3vmin + var(--sl)); bottom: calc(5vmin + var(--sb)); width: 17vmin; height: 17vmin; min-width: 66px; min-height: 66px; border-radius: 50%; z-index: 9; font-size: clamp(12px, 2.8vmin, 20px); letter-spacing: 2px; border: 3px solid #19e3ff; background: radial-gradient(circle, rgba(25,227,255,.4), rgba(25,227,255,.12)); box-shadow: 0 0 14px rgba(25,227,255,.6); touch-action: none; user-select: none; -webkit-user-select: none; }
+  #jumpBtn.on { background: radial-gradient(circle, rgba(140,245,255,.8), rgba(25,227,255,.4)); transform: scale(.95); }
+  body.desktop #peeBtn, body.desktop #jumpBtn { display: none; }
+  body.inmenu #peeBtn, body.inmenu #jumpBtn, body.inmenu #crosshair { display: none; }
   .hint { position: fixed; bottom: calc(14vh + var(--sb)); width: 40vw; text-align: center; font-size: clamp(12px, 2.2vmin, 17px); letter-spacing: 2px; color: rgba(255,255,255,.75); pointer-events: none; z-index: 4; transition: opacity 1s; }
-  #hintL { left: calc(5vw + var(--sl)); }
+  #hintL { left: calc(5vw + var(--sl)); bottom: calc(30vh + var(--sb)); }
   #hintR { right: calc(5vw + var(--sr)); }
   .hint b { display: block; font-size: 1.4em; margin-bottom: 4px; }
   body.desktop .hint { display: none; }
@@ -104,6 +106,7 @@
 <div class="stick" id="stickL"><div class="ring"></div><div class="knob"></div></div>
 <div id="crosshair"></div>
 <button id="peeBtn" aria-label="Pee">PEE</button>
+<button id="jumpBtn" aria-label="Jump">JUMP</button>
 <div class="hint" id="hintL"><b>&#9664; WALK</b>drag the left side</div>
 <div class="hint" id="hintR"><b>LOOK &#9654;</b>drag the right side, hold PEE</div>
 
@@ -141,7 +144,7 @@
   </div>
   <button class="big" id="btnPlay">PLAY</button>
   <p class="long">Grab glowing potions for chili, ice or acid pee. Health creeps back when you stay dry, but random modes (disco, goth, bogan) change the rules. The world only goes psychedelic when you are badly hurt. Bugs wander the forest and fart out bonuses: speed, health, bounce and a big gulp. Sounds are placed in 3D, so wear headphones. A tall metalhead called Nathaniel wanders the forest: find him (gold diamond on the map) for Wizard Mode. Look up to throw your stream further: the glowing ring shows where it lands. Your bladder empties as you pee and refills when you stop. Trees block your stream.</p>
-  <p class="keys">Computer: WASD to walk, mouse to look (click to capture it), hold click or Space to pee.</p>
+  <p class="keys">Computer: WASD to walk, mouse to look (click to capture it), hold click or F to pee, Space to jump.</p>
 </div>
 
 <div class="overlay" id="over">

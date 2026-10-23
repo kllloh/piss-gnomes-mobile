@@ -94,7 +94,7 @@ Gnome.onSay = (g, what) => banter.say(g, what, arena.mod, what === 'death' || wh
 
 // --- input ------------------------------------------------------------------------------------------------
 
-const input = new Input($('touch'), $('peeBtn'));
+const input = new Input($('touch'), $('peeBtn'), $('jumpBtn'));
 const coarse = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (!coarse) document.body.classList.add('desktop');
 
@@ -415,6 +415,7 @@ function playerControls() {
   player.moveZ = fz * input.moveF + fx * input.moveX;
   player.hasAim = false;
   player.wantPee = input.fire;
+  if (input.takeJump() && state === 'play') player.jump();
 
   // a thumb is not a mouse: when peeing, drift the stream towards anyone nearly under the crosshair
   player.assistYaw = player.assistPitch = null;

@@ -8,8 +8,8 @@ get wilder as you take damage, and a generative trance soundtrack.
 
 Open `piss-gnomes-mobile.html` in a browser (self-contained, no install). On iPad/iPhone, use Share > Add to Home Screen.
 
-- **Touch:** left thumb walks, drag the right side to look, hold the PEE button to pee (a light auto-aim helps). Look up to throw your stream further; the glowing ring on the ground is where it lands. Portrait and landscape both work.
-- **Computer:** WASD to walk, mouse to look (click to capture it), hold click or Space to pee.
+- **Touch:** left thumb walks (JUMP button bottom-left), drag the right side to look, hold the PEE button to pee (a light auto-aim helps). Look up to throw your stream further; the glowing ring on the ground is where it lands. Portrait and landscape both work.
+- **Computer:** WASD to walk, mouse to look (click to capture it), hold click or F to pee, Space to jump.
 - **Bladder:** drains as you pee and refills when you stop. Run dry and you wait for it to come back.
 
 ## Develop
