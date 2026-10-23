@@ -47,6 +47,8 @@ export class PeeSystem {
   private life = new Float32Array(MAX);
   private owner: (Gnome | null)[] = new Array(MAX).fill(null);
   private kind = new Uint8Array(MAX);
+  private rgb = new Float32Array(MAX * 3);
+  private tmpCol = new THREE.Color();
   private count = 0;
   private acc = new Map<number, number>();
 
@@ -92,7 +94,8 @@ export class PeeSystem {
     const ki = KINDS.indexOf(kind);
     const n = Math.floor(a);
     this.acc.set(g.id, a - n);
-    const col = ki > 0 ? KCOL[ki] : g.isPlayer ? C_PLAYER : C_BOT;
+    const base = ki > 0 ? KCOL[ki] : g.isPlayer ? C_PLAYER : C_BOT;
+    const wiz = g.wizard > 0;
     for (let k = 0; k < n && this.count < MAX; k++) {
       const i = this.count++;
       const sp = SPEED * (0.96 + Math.random() * 0.08);
@@ -107,6 +110,10 @@ export class PeeSystem {
       this.life[i] = LIFE;
       this.owner[i] = g;
       this.kind[i] = ki;
+      const col = wiz ? this.tmpCol.setHSL(Math.random(), 1, 0.65) : base;
+      this.rgb[i * 3] = col.r;
+      this.rgb[i * 3 + 1] = col.g;
+      this.rgb[i * 3 + 2] = col.b;
       this.mesh.setColorAt(i, col);
     }
   }
@@ -133,7 +140,10 @@ export class PeeSystem {
       this.life[i] = this.life[last];
       this.owner[i] = this.owner[last];
       this.kind[i] = this.kind[last];
-      this.mesh.setColorAt(i, this.kind[i] > 0 ? KCOL[this.kind[i]] : this.owner[i]!.isPlayer ? C_PLAYER : C_BOT);
+      this.rgb[i * 3] = this.rgb[last * 3];
+      this.rgb[i * 3 + 1] = this.rgb[last * 3 + 1];
+      this.rgb[i * 3 + 2] = this.rgb[last * 3 + 2];
+      this.mesh.setColorAt(i, this.tmpCol.setRGB(this.rgb[i * 3], this.rgb[i * 3 + 1], this.rgb[i * 3 + 2]));
     }
     this.owner[last] = null;
   }

@@ -3,6 +3,7 @@ import { Forest, HALF } from './forest';
 import { Gnome, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
 import { Potions } from './potions';
 import { Banter, modTagline } from './talk';
+import { Nathaniel } from './nathaniel';
 import { Trip } from './trip';
 import { PeeSystem, RANGE, PEE } from './pee';
 import { Input } from './input';
@@ -13,6 +14,7 @@ const MIST_TIME = 150; // seconds it takes to close
 const MIST_START = 58;
 const MIST_END = 6;
 const COUNTDOWN = 3.4;
+const WIZARD_TIME = 20;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -78,6 +80,8 @@ const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, 
 fit();
 
 const banter = new Banter($('bubbles'), $('chatter'), player);
+const nathaniel = new Nathaniel(scene);
+const NATHANIEL_POS = new THREE.Vector3();
 Gnome.onSay = (g, what) => banter.say(g, what, arena.mod, what === 'death' || what === 'kill');
 
 // --- input ------------------------------------------------------------------------------------------------
@@ -135,6 +139,13 @@ function drawMinimap() {
   mapCtx.lineWidth = 1.5;
   mapCtx.stroke();
   mapCtx.lineWidth = 1;
+  // Nathaniel: a gold diamond
+  mapCtx.fillStyle = '#ffe066';
+  mapCtx.save();
+  mapCtx.translate(px(nathaniel.pos.x), px(nathaniel.pos.z));
+  mapCtx.rotate(Math.PI / 4);
+  mapCtx.fillRect(-3.5, -3.5, 7, 7);
+  mapCtx.restore();
   for (const g of gnomes) {
     if (!g.alive) continue;
     mapCtx.beginPath();
@@ -196,6 +207,7 @@ function startMatch() {
   sfx.setMood('none');
   potions.reset();
   banter.clear();
+  nathaniel.spawn(forest, player.pos);
   idleT = 4;
   $('feed').innerHTML = '';
   document.body.classList.remove('inmenu');
@@ -404,6 +416,15 @@ function updateHud() {
     pot.style.borderColor = '#' + info.color.toString(16).padStart(6, '0');
     pot.textContent = `${info.name.toUpperCase()} ${Math.ceil(player.potion.t)}s`;
   } else pot.style.display = 'none';
+  const wz = $('wizard');
+  if (player.wizard > 0 && player.alive) {
+    wz.style.display = 'block';
+    wz.textContent = `WIZARD MODE ${Math.ceil(player.wizard)}s`;
+    $('wizfx').style.opacity = String(0.55 + 0.25 * Math.sin(arena.time * 6));
+  } else {
+    wz.style.display = 'none';
+    $('wizfx').style.opacity = '0';
+  }
   const chip = $('modchip');
   if (curMod && state === 'play') {
     chip.style.display = 'block';
@@ -470,6 +491,19 @@ function frame(nowMs: number, lastMs: number) {
           banner(PEE[kind].name.toUpperCase() + '!', PEE[kind].blurb, 1700);
         }
       });
+      {
+        const ev = nathaniel.update(dt, nowMs / 1000, forest, arena.ringR, state === 'play' && player.alive ? player.pos : null);
+        if (ev.shout) {
+          NATHANIEL_POS.copy(nathaniel.pos);
+          banter.shout(NATHANIEL_POS, nathaniel.headY + 0.8, 'Nathaniel!', 0xffe066, true);
+        }
+        if (ev.bless) {
+          player.wizard = WIZARD_TIME;
+          banner('WIZARD MODE!', 'Nathaniel blessed you. You cannot be hurt!', 3200);
+          sfx.win();
+          feedLine('<b>Nathaniel</b> gave you Wizard Mode');
+        }
+      }
       if (state === 'play') {
         // idle muttering from whoever is nearby, now and then
         idleT -= dt;
@@ -609,6 +643,7 @@ function frame(nowMs: number, lastMs: number) {
   const out = state !== 'menu' && player.alive && Math.hypot(player.pos.x, player.pos.z) > arena.ringR;
   let psyT = Math.max(0, Math.min(1, (0.72 - hpNow) / 0.5));
   if (out) psyT = Math.max(psyT, 0.7);
+  if (player.wizard > 0) psyT = 0; // nothing can hurt a wizard
   if (state === 'menu') psyT = 0.85; // the menu shows off
   psy += (psyT - psy) * Math.min(1, dt * 2.5);
   trip.psy = psy;
@@ -640,4 +675,4 @@ function loop(now: number) {
 requestAnimationFrame((t) => { last = t; loop(t); });
 
 // a little handle for testing
-(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, mod: (m: Mod) => { curMod = m; lastMod = m; shownMod = m; arena.mod = m; modUntil = arena.time + 60; sfx.setMood(m); }, get state() { return state; } };
+(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, nathaniel, mod: (m: Mod) => { curMod = m; lastMod = m; shownMod = m; arena.mod = m; modUntil = arena.time + 60; sfx.setMood(m); }, get state() { return state; } };

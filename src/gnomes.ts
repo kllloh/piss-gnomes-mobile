@@ -126,6 +126,8 @@ export class Gnome {
 
   /** A potion changes what you pee for a while. */
   potion: { kind: PeeKind; t: number } | null = null;
+  /** Wizard Mode (from Nathaniel): seconds of being unhurtable. */
+  wizard = 0;
   burn = 0;
   acid = 0;
   chill = 0;
@@ -229,6 +231,7 @@ export class Gnome {
     this.lastHitBy = null;
     this.target = null;
     this.potion = null;
+    this.wizard = 0;
     this.burn = this.acid = this.chill = this.frozen = this.immune = 0;
     this.sinceHurt = 99;
     this.saidLow = false;
@@ -250,7 +253,7 @@ export class Gnome {
 
   /** A droplet of `kind` landed on this gnome. */
   hit(kind: PeeKind, mul: number, from: Gnome, time: number) {
-    if (!this.alive) return;
+    if (!this.alive || this.wizard > 0) return;
     this.sinceHurt = 0;
     this.wet = 0.35;
     this.lastHitBy = from;
@@ -279,6 +282,7 @@ export class Gnome {
 
   /** Burning and acid: quiet damage over time. */
   private dot(amount: number, from: Gnome | null, time: number) {
+    if (this.wizard > 0) return;
     this.hp -= amount;
     this.sinceHurt = 0;
     if (from) { this.lastHitBy = from; this.lastHitAt = time; }
@@ -287,7 +291,7 @@ export class Gnome {
 
   /** The mist: damage that is credited to whoever last wet you, if that was recent. */
   mist(amount: number, time: number) {
-    if (!this.alive) return;
+    if (!this.alive || this.wizard > 0) return;
     this.hp -= amount;
     this.sinceHurt = 0;
     this.wet = 0.2;
@@ -435,6 +439,7 @@ export class Gnome {
 
     // statuses, health coming back, and the potion running out
     this.sinceHurt += dt;
+    if (this.wizard > 0) { this.wizard -= dt; this.burn = this.acid = this.chill = this.frozen = 0; }
     if (this.burn > 0) { this.burn -= dt; this.dot(8 * dt, this.burnBy, A.time); if (this.wet > 0.2) this.burn = Math.min(this.burn, 0.4); }
     if (this.acid > 0) { this.acid -= dt; this.dot(5 * dt, this.acidBy, A.time); }
     if (this.frozen > 0) { this.frozen -= dt; if (this.frozen <= 0) { this.immune = 3; this.chill = 0; } }

@@ -34,3 +34,6 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   health regeneration) and **Bogan** (bladder lasts longer, wobbly drunk aim, sunset haze). Each has its own music.
 - **Banter:** every gnome shouts unhinged lines in speech bubbles, plus a death cry when they go down (spoken aloud with
   your device's speech voices; the sound button mutes them).
+- **Nathaniel:** a tall, dorky metalhead (glasses, skull band T-shirt, blue jeans) three gnomes high who wanders the forest
+  shouting his own name. Walk up to him (he shows as a gold diamond on the minimap) and he gives you **Wizard Mode**: 20
+  seconds of being unhurtable, with rainbow pee. He cannot be hurt and only blesses you every 40 seconds.

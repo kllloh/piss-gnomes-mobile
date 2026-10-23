@@ -86,7 +86,9 @@ export function modTagline(m: Mod): string {
 }
 
 interface Bubble {
-  g: Gnome;
+  g: Gnome | null;
+  pos: THREE.Vector3;
+  y: number;
   el: HTMLElement;
   t: number;
 }
@@ -140,12 +142,33 @@ export class Banter {
       el.textContent = text;
       el.style.borderColor = '#' + g.color.toString(16).padStart(6, '0');
       this.layer.appendChild(el);
-      this.bubbles.push({ g, el, t: 2.8 });
+      this.bubbles.push({ g, pos: g.pos, y: 4.4, el, t: 2.8 });
     }
     // voices: deaths and the player's own lines, and only things near enough to hear
     if (this.voices && loud && 'speechSynthesis' in window) {
       const d = Math.hypot(g.pos.x - this.player.pos.x, g.pos.z - this.player.pos.z);
       if (g.isPlayer || d < 38) this.voice(g, text);
+    }
+  }
+
+  /** A shout from something that is not a gnome (Nathaniel): a bubble at `pos`, and a deep voice. */
+  shout(pos: THREE.Vector3, y: number, text: string, color: number, deep: boolean) {
+    const el = document.createElement('div');
+    el.className = 'bubble big';
+    el.textContent = text;
+    el.style.borderColor = '#' + color.toString(16).padStart(6, '0');
+    this.layer.appendChild(el);
+    this.bubbles.push({ g: null, pos, y, el, t: 2.4 });
+    if (this.voices && 'speechSynthesis' in window) {
+      try {
+        const ss = window.speechSynthesis;
+        ss.cancel(); // he is more important than the gnomes
+        const u = new SpeechSynthesisUtterance(text);
+        u.pitch = deep ? 0.3 : 1;
+        u.rate = 0.8;
+        u.volume = 1;
+        ss.speak(u);
+      } catch { /* the bubble is enough */ }
     }
   }
 
@@ -183,7 +206,7 @@ export class Banter {
       const b = this.bubbles[i];
       b.t -= dt;
       if (b.t <= 0) { b.el.remove(); this.bubbles.splice(i, 1); continue; }
-      _v.set(b.g.pos.x, b.g.alive ? 4.4 : 2, b.g.pos.z);
+      _v.set(b.pos.x, b.g ? (b.g.alive ? 4.4 : 2) : b.y, b.pos.z);
       const dist = _v.distanceTo(camera.position);
       _v.project(camera);
       const vis = _v.z < 1 && Math.abs(_v.x) < 1.15 && Math.abs(_v.y) < 1.1 && dist < 34;
