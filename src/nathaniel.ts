@@ -81,6 +81,11 @@ export class Nathaniel {
   private marker: THREE.Mesh;
   /** He stops and faces whoever he is blessing. */
   private pause = 0;
+  private stuckT = 0;
+  private lastX = 0;
+  private lastZ = 0;
+  private avoidT = 0;
+  private avoidDir = 1;
 
   constructor(scene: THREE.Scene) {
     const mk = (parent: THREE.Object3D, w: number, h: number, d: number, x: number, y: number, z: number, color: number) => {
@@ -187,13 +192,30 @@ export class Nathaniel {
         this.goal.copy(forest.randomFree(lim));
         this.goalT = 8 + Math.random() * 6;
       }
-      const dx = this.goal.x - this.pos.x;
-      const dz = this.goal.z - this.pos.z;
+      let dx = this.goal.x - this.pos.x;
+      let dz = this.goal.z - this.pos.z;
+      // not getting anywhere (a tree in the way)? swing off to the side for a moment, then try another goal
+      this.stuckT += dt;
+      if (this.stuckT > 0.6) {
+        if (Math.hypot(this.pos.x - this.lastX, this.pos.z - this.lastZ) < 0.5) {
+          this.avoidT = 1.1;
+          this.avoidDir = Math.random() < 0.5 ? 1 : -1;
+          this.goalT = Math.min(this.goalT, 0.8);
+        }
+        this.lastX = this.pos.x;
+        this.lastZ = this.pos.z;
+        this.stuckT = 0;
+      }
+      if (this.avoidT > 0) {
+        this.avoidT -= dt;
+        const l = Math.hypot(dx, dz) || 1;
+        [dx, dz] = [(-dz / l) * this.avoidDir + (dx / l) * 0.25, (dx / l) * this.avoidDir + (dz / l) * 0.25];
+      }
       const d = Math.hypot(dx, dz) || 1;
       this.yaw += angleDiff(this.yaw, Math.atan2(dx, dz)) * Math.min(1, dt * 3);
       this.pos.x += (dx / d) * speed * dt;
       this.pos.z += (dz / d) * speed * dt;
-      forest.collide(this.pos, 0.9);
+      forest.collide(this.pos, 0.6);
     }
     if (target) {
       const dd = Math.hypot(target.x - this.pos.x, target.z - this.pos.z);
