@@ -6,7 +6,8 @@ import { Banter, modTagline } from './talk';
 import { Nathaniel } from './nathaniel';
 import { Bugs, BONUS_INFO, type BonusKind } from './bugs';
 import { detectQuality } from './quality';
-import { heightAt, surfaceAt, poiAt, renderTerrainImage, POIS, SEA } from './map';
+import { heightAt, surfaceAt, poiAt, renderTerrainImage, POIS, SEA, landNear } from './map';
+import { BattlePlane } from './plane';
 import { Trip } from './trip';
 import { PeeSystem, RANGE, PEE, MIX, KIND_BIT } from './pee';
 import { Input } from './input';
@@ -93,9 +94,10 @@ const botNames = NAMES.slice().sort(() => Math.random() - 0.5);
 for (let i = 1; i < TOTAL; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i % HATS.length], false, i));
 const gnomes: Gnome[] = [player, ...bots];
 
+const plane = new BattlePlane(scene);
 const potions = new Potions(scene, forest);
 const bugs = new Bugs(scene, forest);
-const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true, potions, bugs, drawDist: quality.drawDist + 10, mod: null };
+const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true, potions, bugs, drawDist: quality.drawDist + 10, plane: null, mod: null };
 fit();
 
 const banter = new Banter($('bubbles'), $('chatter'), player);
@@ -164,6 +166,21 @@ function drawMinimap() {
   mapCtx.lineWidth = 1.5;
   mapCtx.stroke();
   mapCtx.lineWidth = 1;
+  if (arena.plane) {
+    const i = arena.plane;
+    mapCtx.beginPath();
+    mapCtx.moveTo(px(i.sx), px(i.sz));
+    mapCtx.lineTo(px(i.ex), px(i.ez));
+    mapCtx.setLineDash([4, 3]);
+    mapCtx.strokeStyle = '#fff';
+    mapCtx.lineWidth = 1.5;
+    mapCtx.stroke();
+    mapCtx.setLineDash([]);
+    mapCtx.beginPath();
+    mapCtx.arc(px(i.pos.x), px(i.pos.z), 4, 0, Math.PI * 2);
+    mapCtx.fillStyle = '#ff3a8a';
+    mapCtx.fill();
+  }
   for (const b of bugs.lying) {
     mapCtx.beginPath();
     mapCtx.arc(px(b.x), px(b.z), 3, 0, Math.PI * 2);
@@ -183,7 +200,7 @@ function drawMinimap() {
     mapCtx.arc(px(g.pos.x), px(g.pos.z), g.isPlayer ? 4.5 : 2.3, 0, Math.PI * 2);
     mapCtx.fillStyle = hex(g.isPlayer ? 0xffffff : g.color);
     mapCtx.fill();
-    if (g.isPlayer) {
+    if (g.isPlayer && g.flight !== 'bus') {
       mapCtx.strokeStyle = '#19e3ff';
       mapCtx.stroke();
       // the way you are facing
@@ -197,7 +214,7 @@ function drawMinimap() {
 
 // --- the match -----------------------------------------------------------------------------------------------------
 
-type State = 'menu' | 'countdown' | 'play' | 'over';
+type State = 'menu' | 'countdown' | 'plane' | 'play' | 'over';
 let state: State = 'menu';
 let paused = false;
 let countdown = 0;
@@ -206,6 +223,7 @@ let mistStarted = false;
 let spectating = false;
 let watchTarget: Gnome | null = null;
 let overTimer = 0;
+let planeT = 0;
 let playerPlace = 0;
 let matchTime = 0;
 const god = new URLSearchParams(location.search).has('god');
@@ -217,6 +235,25 @@ function aliveGnomes(): Gnome[] {
 function startMatch() {
   const spots = forest.spawns.slice().sort(() => Math.random() - 0.5);
   gnomes.forEach((g, i) => g.spawn(spots[i]));
+  // everybody starts aboard the drop plane, which flies one line across the island
+  plane.reset();
+  arena.plane = plane.info;
+  gnomes.forEach((g) => {
+    if (g.isPlayer) { g.board(arena, null, 0); return; }
+    // bots aim for a named place (or a spot near the plane's route) and jump when the plane gets close enough
+    let t: { x: number; z: number };
+    if (Math.random() < 0.65) {
+      const p = POIS[Math.floor(Math.random() * POIS.length)];
+      t = landNear(p.x + (Math.random() - 0.5) * p.r, p.z + (Math.random() - 0.5) * p.r, 0.6);
+    } else {
+      const f = Math.random();
+      const lat = (Math.random() * 2 - 1) * 45;
+      const i = plane.info;
+      t = landNear(i.sx + (i.ex - i.sx) * f - i.dirZ * lat, i.sz + (i.ez - i.sz) * f + i.dirX * lat, 0.6);
+    }
+    g.board(arena, t, 55 + Math.random() * 40);
+  });
+  planeT = 0;
   pee.clear();
   arena.time = 0;
   arena.ringR = MIST_START;
@@ -350,6 +387,23 @@ function drawBigMap() {
   ctx.strokeStyle = '#ff3a8a';
   ctx.lineWidth = 3;
   ctx.stroke();
+  if (arena.plane) {
+    const i = arena.plane;
+    ctx.beginPath();
+    ctx.moveTo(px(i.sx), px(i.sz));
+    ctx.lineTo(px(i.ex), px(i.ez));
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(px(i.pos.x), px(i.pos.z), 9, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff3a8a';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
   // the names
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -412,6 +466,16 @@ function openMap(on: boolean) {
 $('minimap').addEventListener('click', () => openMap(true));
 $('bigmap').addEventListener('click', () => openMap(false));
 window.addEventListener('keydown', (e) => { if (e.code === 'KeyM') openMap(!mapOpen); if (e.code === 'Escape' && mapOpen) openMap(false); });
+
+Gnome.onLand = (g) => {
+  if (g.isPlayer) { sfx.pop(); banner('LANDED!', 'now find some gnomes to wee on', 1600); }
+  else sfx.stepAt(g.pos, true);
+};
+let jumpLabel = 'JUMP';
+function updateJumpLabel() {
+  const want = player.flight === 'bus' ? 'DROP' : player.flight === 'fall' ? 'GLIDE' : 'JUMP';
+  if (want !== jumpLabel) { jumpLabel = want; $('jumpBtn').textContent = want; }
+}
 
 let lastPoi = '';
 let locTimer = 0;
@@ -598,7 +662,7 @@ function soundScape() {
   const peeing: { pos: THREE.Vector3; v: number; d: number }[] = [];
   let steps = 0;
   for (const g of gnomes) {
-    if (g.isPlayer || !g.alive) continue;
+    if (g.isPlayer || !g.alive || g.flight !== 'ground') continue;
     const d = Math.hypot(g.pos.x - camera.position.x, g.pos.z - camera.position.z);
     if (g.peeing && d < 38) peeing.push({ pos: g.pos, v: Math.max(0.15, 1 - d / 38), d });
     const sg = Math.sin(g.walkPhase) >= 0 ? 1 : -1;
@@ -647,7 +711,15 @@ function playerControls(dt: number) {
   player.moveZ = fz * input.moveF + fx * input.moveX * inv;
   player.hasAim = false;
   player.wantPee = input.fire;
-  if (input.takeJump() && state === 'play') player.jump(arena.mod === 'moon' ? 10.5 : 8);
+  if (input.takeJump()) {
+    if (player.flight === 'bus') {
+      player.drop(arena);
+      player.yaw = Math.atan2(plane.info.dirX, plane.info.dirZ);
+      player.pitch = -0.55;
+      banner('DROPPING!', 'steer with the left stick, the umbrella opens near the ground', 2200);
+    } else if (player.flight === 'fall') player.deploy();
+    else if (state === 'play') player.jump(arena.mod === 'moon' ? 10.5 : 8);
+  }
 
   // a thumb is not a mouse: when peeing, drift the stream towards anyone nearly under the crosshair
   player.assistYaw = player.assistPitch = null;
@@ -722,13 +794,14 @@ function updateHud() {
     mist.textContent = `MIST IN ${fmt(Math.max(0, MIST_WAIT - arena.time))}`;
     mist.classList.remove('hot');
   } else {
-    const out = Math.hypot(player.pos.x, player.pos.z) > arena.ringR;
+    const out = player.flight === 'ground' && Math.hypot(player.pos.x, player.pos.z) > arena.ringR;
     mist.textContent = out ? 'GET INSIDE THE CIRCLE!' : 'THE MIST IS CLOSING IN';
     mist.classList.toggle('hot', out);
     $('mistfx').style.opacity = out && player.alive ? '1' : '0';
   }
   drawMinimap();
   updateLocation();
+  updateJumpLabel();
 }
 
 function frame(nowMs: number, lastMs: number) {
@@ -742,16 +815,26 @@ function frame(nowMs: number, lastMs: number) {
       if (countdown > COUNTDOWN - 3 && n !== lastBeep) { lastBeep = n; banner(String(Math.max(1, n)), '', 0); sfx.beep(); }
       if (countdown <= COUNTDOWN - 3) {
         arena.frozen = false;
+        state = 'plane';
+        banner('JUMP!', 'tap DROP when you are over somewhere good', 4000);
+        sfx.beep(true);
+      }
+    } else if (state === 'plane') {
+      planeT += dt;
+      plane.update(dt, nowMs / 1000);
+      if (plane.info.done) {
+        // anybody still aboard is pushed out at the end of the line, and the match proper begins
+        for (const g of gnomes) if (g.flight === 'bus') g.drop(arena);
+        arena.plane = null;
         state = 'play';
         banner('PEE!', 'last gnome standing wins', 1500);
-        sfx.beep(true);
       }
     } else if (state === 'play') {
       arena.time += dt;
       matchTime += dt;
     }
 
-    if (state === 'play' || state === 'countdown') {
+    if (state === 'play' || state === 'countdown' || state === 'plane') {
       if (player.alive) playerControls(dt);
       else { player.moveX = player.moveZ = 0; player.wantPee = false; player.hasAim = false; }
       if (god) player.hp = MAX_HP;
@@ -763,11 +846,12 @@ function frame(nowMs: number, lastMs: number) {
           const p = Math.min(1, (arena.time - MIST_WAIT) / MIST_TIME);
           arena.ringR = MIST_START + (MIST_END - MIST_START) * p;
           const dmg = (3 + 8 * p) * dt;
-          for (const g of gnomes) if (g.alive && Math.hypot(g.pos.x, g.pos.z) > arena.ringR && !(god && g.isPlayer)) g.mist(dmg, arena.time);
+          for (const g of gnomes) if (g.alive && g.flight === 'ground' && Math.hypot(g.pos.x, g.pos.z) > arena.ringR && !(god && g.isPlayer)) g.mist(dmg, arena.time);
         }
       }
 
       pee.gravity = arena.mod === 'moon' ? 3.2 : 9;
+      sfx.planeAt(arena.plane ? arena.plane.pos : null);
       for (const g of gnomes) g.update(dt, arena);
       pee.update(dt, forest, gnomes, (victim, shooter, mask) => {
         if (god && victim.isPlayer) return;
@@ -883,7 +967,11 @@ function frame(nowMs: number, lastMs: number) {
     focus = watchTarget ?? player;
   }
   const t = nowMs / 1000;
-  if (state === 'menu') {
+  if (focus === player && player.flight === 'bus' && arena.plane) {
+    const pl = arena.plane;
+    camera.position.set(pl.pos.x - pl.dirX * 26, pl.pos.y + 9, pl.pos.z - pl.dirZ * 26);
+    camera.lookAt(pl.pos.x + pl.dirX * 14, pl.pos.y - 30, pl.pos.z + pl.dirZ * 14);
+  } else if (state === 'menu') {
     // a slow drift through the trees behind the menu
     const a = t * 0.08;
     camera.position.set(Math.cos(a) * 16, Math.max(heightAt(Math.cos(a) * 16, Math.sin(a) * 16), SEA) + 2.4, Math.sin(a) * 16);
@@ -905,12 +993,12 @@ function frame(nowMs: number, lastMs: number) {
   banter.update(dt, camera);
 
   // the landing marker: where your stream will come down
-  if (state !== 'menu' && player.alive) {
+  if (state !== 'menu' && player.alive && player.flight === 'ground') {
     const cp = Math.cos(player.pitch);
     const fx = Math.sin(player.yaw) * cp;
     const fz = Math.cos(player.yaw) * cp;
     const ok = pee.landing(player.pos.x + Math.sin(player.yaw) * 0.5, 0.75 + player.pos.y, player.pos.z + Math.cos(player.yaw) * 0.5, fx, Math.sin(player.pitch), fz, forest, landing);
-    landMark.visible = ok;
+    landMark.visible = ok && player.flight === 'ground';
     landMark.position.set(landing.x, surfaceAt(landing.x, landing.z) + 0.08, landing.z);
     landMark.rotation.z = t * 1.5;
     (landMark.material as THREE.MeshBasicMaterial).opacity = player.peeing ? 0.9 : 0.5;
@@ -963,7 +1051,7 @@ function frame(nowMs: number, lastMs: number) {
   // the world is a normal night forest until you are hurt; low health is what makes it psychedelic
   const beat = sfx.beat;
   const hpNow = state === 'menu' ? 1 : Math.max(0, player.hp) / MAX_HP;
-  const out = state !== 'menu' && player.alive && Math.hypot(player.pos.x, player.pos.z) > arena.ringR;
+  const out = state !== 'menu' && player.alive && player.flight === 'ground' && Math.hypot(player.pos.x, player.pos.z) > arena.ringR;
   let psyT = Math.max(0, Math.min(1, (0.72 - hpNow) / 0.5));
   if (out) psyT = Math.max(psyT, 0.7);
   if (player.wizard > 0) psyT = 0; // nothing can hurt a wizard

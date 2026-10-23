@@ -101,7 +101,7 @@ export class Potions {
       it.bottle.rotation.y = t * 1.6;
       it.group.position.y = it.gy + Math.sin(t * 2 + it.x) * 0.12;
       for (const g of gnomes) {
-        if (!g.alive || g.potions[it.kind as 'chili'] > 0) continue; // a kind you already hold is left for a mix
+        if (!g.alive || g.flight !== 'ground' || g.potions[it.kind as 'chili'] > 0) continue; // a kind you already hold is left for a mix
         const dx = g.pos.x - it.x;
         const dz = g.pos.z - it.z;
         if (dx * dx + dz * dz < GRAB * GRAB) {

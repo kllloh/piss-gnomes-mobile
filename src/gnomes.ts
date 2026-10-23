@@ -3,7 +3,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createGnome } from './gnome';
 import { lit } from './organic';
 import { HALF, type Forest } from './forest';
-import { heightAt, waterDepth, DEEP, SEA } from './map';
+import { heightAt, waterDepth, DEEP, SEA, landNear } from './map';
+import type { PlaneInfo } from './plane';
 import { RANGE, SPEED as DROP_SPEED, GRAVITY, MIX, KIND_BIT, type PeeSystem } from './pee';
 import type { Potions } from './potions';
 import type { Bugs } from './bugs';
@@ -33,10 +34,13 @@ export interface Arena {
   bugs: Bugs;
   /** Beyond this distance from the camera gnomes are not drawn. */
   drawDist: number;
+  /** The drop plane, while it is flying. */
+  plane: PlaneInfo | null;
   /** The silly mode that is on right now, if any. */
   mod: Mod | null;
 }
 
+export type Flight = 'ground' | 'bus' | 'fall' | 'glide';
 export type Mod = 'disco' | 'goth' | 'bogan' | 'upside' | 'moon' | 'slippery';
 export type Say = 'spot' | 'hit' | 'kill' | 'death' | 'burn' | 'freeze' | 'melt' | 'lowhp' | 'dry' | 'idle' | 'taunt';
 
@@ -119,6 +123,13 @@ const ringGeo = new THREE.RingGeometry(0.95, 1.22, 24).rotateX(-Math.PI / 2);
 const barGeo = new THREE.PlaneGeometry(1, 1);
 const chevGeo = new THREE.ConeGeometry(0.34, 0.6, 4).rotateX(Math.PI); // points down
 const shadowGeo = new THREE.CircleGeometry(0.75, 14).rotateX(-Math.PI / 2);
+const chuteGeo = new THREE.SphereGeometry(1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+const chuteMats = new Map<number, THREE.MeshLambertMaterial>();
+function chuteMat(color: number): THREE.MeshLambertMaterial {
+  let m = chuteMats.get(color);
+  if (!m) { m = new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide, flatShading: true }); chuteMats.set(color, m); }
+  return m;
+}
 const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false });
 const barBgMat = new THREE.MeshBasicMaterial({ color: 0x120a22, transparent: true, opacity: 0.8, depthTest: false });
 
@@ -135,6 +146,8 @@ export class Gnome {
   static onDeath: ((victim: Gnome, killer: Gnome | null) => void) | null = null;
   /** Somebody got hit (for sound and haptics). */
   static onHurt: ((g: Gnome) => void) | null = null;
+  /** Somebody touched down. */
+  static onLand: ((g: Gnome) => void) | null = null;
   /** Something worth saying out loud happened to this gnome. */
   static onSay: ((g: Gnome, what: Say) => void) | null = null;
 
@@ -172,6 +185,14 @@ export class Gnome {
   bounceT = 0;
   freeT = 0;
   private vy = 0;
+  /** Aboard the plane, falling, gliding under an umbrella, or on the ground. */
+  flight: Flight = 'ground';
+  /** Where a bot means to land, and how close the plane must get before it jumps. */
+  private landX = 0;
+  private landZ = 0;
+  private jumpR = 70;
+  private landShield = 0;
+  private chute: THREE.Mesh;
   /** Height of the ground under the feet, and how deep the water is there. */
   ground = 0;
   wading = 0;
@@ -248,6 +269,9 @@ export class Gnome {
     this.root.rotation.order = 'YXZ';
     scene.add(this.root);
 
+    this.chute = new THREE.Mesh(chuteGeo, chuteMat(color));
+    this.chute.visible = false;
+    scene.add(this.chute);
     this.shadow = new THREE.Mesh(shadowGeo, shadowMat);
     this.shadow.position.y = 0.04;
     scene.add(this.shadow);
@@ -285,6 +309,9 @@ export class Gnome {
     this.dizzy = 0;
     this.acidMul = 1;
     this.wizard = 0;
+    this.flight = 'ground';
+    this.landShield = 0;
+    this.chute.visible = false;
     this.speedT = this.bounceT = this.freeT = 0;
     this.vy = 0;
     this.burn = this.acid = this.chill = this.frozen = this.immune = 0;
@@ -308,7 +335,7 @@ export class Gnome {
 
   /** A droplet landed on this gnome. `mask` is the stream's potion mix (0 = plain pee). */
   hit(mask: number, mul: number, from: Gnome, time: number) {
-    if (!this.alive || this.wizard > 0) return;
+    if (!this.alive || this.wizard > 0 || this.landShield > 0 || this.flight !== 'ground') return;
     this.sinceHurt = 0;
     this.wet = 0.35;
     this.lastHitBy = from;
@@ -392,7 +419,7 @@ export class Gnome {
     let bd = 22;
     const cur = this.target && this.target.alive ? this.target : null;
     for (const g of A.gnomes) {
-      if (g === this || !g.alive) continue;
+      if (g === this || !g.alive || g.flight !== 'ground') continue;
       const d = Math.hypot(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
       if (d < bd - (g === cur ? 4 : 0)) { bd = d; best = g; }
     }
@@ -475,7 +502,7 @@ export class Gnome {
         // with fifty gnomes about, go and find one
         let bd = Infinity;
         for (const g of A.gnomes) {
-          if (g === this || !g.alive) continue;
+          if (g === this || !g.alive || g.flight !== 'ground') continue;
           const d = Math.hypot(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
           if (d < bd) { bd = d; goal = g.pos; }
         }
@@ -538,6 +565,14 @@ export class Gnome {
       this.cull(A);
       return;
     }
+
+    if (this.flight !== 'ground') {
+      this.fly(dt, A);
+      this.syncVisual(dt);
+      this.cull(A);
+      return;
+    }
+    this.landShield = Math.max(0, this.landShield - dt);
 
     // statuses, health coming back, and the potion running out
     this.sinceHurt += dt;
@@ -642,8 +677,107 @@ export class Gnome {
     this.cull(A);
   }
 
+  // --- the drop: aboard the plane, falling, gliding ------------------------------------------------------------
+
+  /** Climb aboard. Bots are given a place to aim for and how close the plane has to get before they jump. */
+  board(A: Arena, target: { x: number; z: number } | null, jumpR: number) {
+    this.flight = 'bus';
+    this.landX = target ? target.x : 0;
+    this.landZ = target ? target.z : 0;
+    this.jumpR = jumpR;
+    if (A.plane) this.pos.copy(A.plane.pos);
+    this.chute.visible = false;
+  }
+
+  /** Jump out of the plane. */
+  drop(A: Arena) {
+    if (this.flight !== 'bus' || !A.plane) return;
+    this.flight = 'fall';
+    this.pos.copy(A.plane.pos);
+    this.pos.y -= 3;
+    this.vel.set(A.plane.vx, 0, A.plane.vz);
+    this.vy = -4;
+    this.yaw = Math.atan2(A.plane.dirX, A.plane.dirZ);
+    this.root.visible = true;
+  }
+
+  /** Open the umbrella early. */
+  deploy() {
+    if (this.flight === 'fall') this.flight = 'glide';
+  }
+
+  private fly(dt: number, A: Arena) {
+    if (this.flight === 'bus') {
+      if (A.plane) this.pos.copy(A.plane.pos);
+      this.peeing = this.wantPee = false;
+      if (!this.isPlayer && A.plane) {
+        // a bot jumps when the plane is close enough to where it wants to land, or once it has flown past it
+        const dx = this.landX - A.plane.pos.x;
+        const dz = this.landZ - A.plane.pos.z;
+        const passed = dx * A.plane.dirX + dz * A.plane.dirZ < 0;
+        if (Math.hypot(dx, dz) < this.jumpR || passed) this.drop(A);
+      }
+      return;
+    }
+    const x = this.pos.x;
+    const z = this.pos.z;
+    const gh = heightAt(x, z);
+    this.ground = gh;
+    this.wading = waterDepth(x, z);
+    this.peeing = this.wantPee = false;
+    let mx = this.moveX;
+    let mz = this.moveZ;
+    if (!this.isPlayer) {
+      const dx = this.landX - x;
+      const dz = this.landZ - z;
+      const d = Math.hypot(dx, dz);
+      if (d > 3) { mx = dx / d; mz = dz / d; } else { mx = mz = 0; }
+      if (this.flight === 'fall' && this.pos.y - gh < 36) this.flight = 'glide';
+    } else if (this.flight === 'fall' && this.pos.y - gh < 34) this.flight = 'glide';
+    const falling = this.flight === 'fall';
+    const ml = Math.hypot(mx, mz);
+    const sc = ml > 1 ? 1 / ml : 1;
+    const top = falling ? 17 : 12;
+    const k = 1 - Math.exp(-2.4 * dt);
+    this.vel.x += (mx * sc * top - this.vel.x) * k;
+    this.vel.z += (mz * sc * top - this.vel.z) * k;
+    this.vy += ((falling ? -40 : -7) - this.vy) * (1 - Math.exp(-(falling ? 1.6 : 3.5) * dt));
+    this.pos.x += this.vel.x * dt;
+    this.pos.z += this.vel.z * dt;
+    this.pos.y += this.vy * dt;
+    const lim = HALF - 1.2;
+    this.pos.x = Math.max(-lim, Math.min(lim, this.pos.x));
+    this.pos.z = Math.max(-lim, Math.min(lim, this.pos.z));
+    if (!this.isPlayer && Math.hypot(this.vel.x, this.vel.z) > 1.5) this.yaw += angleDiff(this.yaw, Math.atan2(this.vel.x, this.vel.z)) * (1 - Math.exp(-6 * dt));
+    this.walkPhase += dt * 6;
+    const gNow = heightAt(this.pos.x, this.pos.z);
+    if (this.pos.y <= gNow) this.land(gNow);
+  }
+
+  private land(gh: number) {
+    this.flight = 'ground';
+    this.pos.y = gh;
+    this.vy = 0;
+    this.vel.multiplyScalar(0.15);
+    this.chute.visible = false;
+    if (waterDepth(this.pos.x, this.pos.z) > DEEP) {
+      const l = landNear(this.pos.x, this.pos.z, 0.1);
+      this.pos.x = l.x;
+      this.pos.z = l.z;
+      this.pos.y = heightAt(l.x, l.z);
+    }
+    this.landShield = 3;
+    this.sinceHurt = 99;
+    this.target = null;
+    Gnome.onLand?.(this);
+  }
+
   /** Far-away gnomes are not drawn, and only near ones get a marker and a health bar: fifty of them is a lot of draw calls. */
   private cull(A: Arena) {
+    if (this.flight === 'bus') {
+      this.root.visible = this.shadow.visible = this.marker.visible = this.bar.visible = this.chute.visible = false;
+      return;
+    }
     const dx = this.pos.x - A.camera.position.x;
     const dz = this.pos.z - A.camera.position.z;
     const d2 = dx * dx + dz * dz;
@@ -654,6 +788,13 @@ export class Gnome {
     }
     this.marker.visible = !this.isPlayer && this.alive && d2 < 55 * 55;
     this.bar.visible = !this.isPlayer && this.alive && d2 < 28 * 28;
+    // the umbrella, over a gliding gnome
+    this.chute.visible = this.flight === 'glide' && this.alive && d2 < A.drawDist * A.drawDist;
+    if (this.chute.visible) {
+      this.chute.position.set(this.pos.x, this.pos.y + 3.7, this.pos.z);
+      this.chute.scale.set(2.6, 1.5, 2.6);
+      this.chute.rotation.y = this.walkPhase * 0.1;
+    }
   }
 
   /** The brain and its sidestep, kept apart so the brain stays readable. */
@@ -672,7 +813,7 @@ export class Gnome {
     this.root.position.z = this.pos.z;
     if (this.alive) this.root.position.y = this.pos.y + Math.abs(Math.sin(this.walkPhase)) * 0.05 * Math.min(1, Math.hypot(this.vel.x, this.vel.z));
     this.root.rotation.y = this.yaw + Math.PI; // the model's face is -z
-    if (this.alive) this.root.rotation.x = this.peeing ? 0.22 : 0;
+    if (this.alive) this.root.rotation.x = this.flight === 'fall' ? -1.15 : this.flight === 'glide' ? 0.1 : this.peeing ? 0.22 : 0;
     const sw = Math.sin(this.walkPhase) * 0.7 * Math.min(1, Math.hypot(this.vel.x, this.vel.z) / 2);
     this.legL.rotation.x = sw;
     this.legR.rotation.x = -sw;

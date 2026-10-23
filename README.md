@@ -74,3 +74,8 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   Ice Wee Glacier, Acid Swamp (green pools) and Wee Woods (a thick mushroom forest). Names float over each place and pop up when you
   arrive; tap the minimap (or press M) for the big map. Wading slows you and refills your bladder, and the deep sea is off limits.
   Heights are one function in `src/map.ts`, used by the terrain mesh, the colliders, droplets, bots and the minimap.
+- **The drop plane:** every match starts with all 50 gnomes aboard a pink propeller plane that flies one line across the island
+  (the dotted line on the map). The button says **DROP**: tap it to jump out over somewhere you like, steer while you fall, and the
+  glider umbrella opens near the ground (tap **GLIDE** to open it earlier). Bots pick a named place and jump when the plane gets close
+  enough. Nobody can pee in the air, and you are safe for 3 seconds after landing. Anybody still aboard is pushed out at the end of the line.
+  The mist and the random modes start only once the plane has gone.
