@@ -23,14 +23,21 @@
   .stick { position: fixed; display: none; width: 0; height: 0; pointer-events: none; z-index: 6; }
   .stick .ring { position: absolute; left: -62px; top: -62px; width: 124px; height: 124px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); background: rgba(255,255,255,.07); }
   .stick .knob { position: absolute; left: 0; top: 0; width: 58px; height: 58px; border-radius: 50%; background: rgba(25,227,255,.45); border: 2px solid #fff; box-shadow: 0 0 12px #19e3ff; transform: translate(-50%, -50%); }
-  #stickR .knob { background: rgba(255,214,60,.5); box-shadow: 0 0 12px #ffd23c; }
-  #stickR.firing .ring { border-color: #ffd23c; background: rgba(255,214,60,.14); }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; pointer-events: none; z-index: 4; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; box-shadow: 0 0 3px #000, 0 0 8px #19e3ff; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { top: 8px; left: 0; height: 2px; width: 18px; }
+  #peeBtn { position: fixed; right: calc(4vmin + var(--sr)); bottom: calc(5vmin + var(--sb)); width: 24vmin; height: 24vmin; min-width: 84px; min-height: 84px; border-radius: 50%; z-index: 9; font-size: clamp(16px, 3.6vmin, 26px); letter-spacing: 3px; border: 3px solid #ffd23c; background: radial-gradient(circle, rgba(255,214,60,.5), rgba(255,140,30,.22)); box-shadow: 0 0 18px rgba(255,214,60,.7); touch-action: none; user-select: none; -webkit-user-select: none; }
+  #peeBtn.on { background: radial-gradient(circle, rgba(255,240,100,.85), rgba(255,170,30,.5)); transform: scale(.95); }
+  body.desktop #peeBtn { display: none; }
+  body.inmenu #peeBtn, body.inmenu #crosshair { display: none; }
   .hint { position: fixed; bottom: calc(14vh + var(--sb)); width: 40vw; text-align: center; font-size: clamp(12px, 2.2vmin, 17px); letter-spacing: 2px; color: rgba(255,255,255,.75); pointer-events: none; z-index: 4; transition: opacity 1s; }
   #hintL { left: calc(5vw + var(--sl)); }
   #hintR { right: calc(5vw + var(--sr)); }
   .hint b { display: block; font-size: 1.4em; margin-bottom: 4px; }
   body.desktop .hint { display: none; }
   body.inmenu #hud, body.inmenu .hint, body.inmenu .stick { display: none !important; }
+  #hintR { right: calc(32vmin + var(--sr)); width: 30vw; }
 
   /* heads-up display */
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 7; }
@@ -84,9 +91,10 @@
 
 <div id="touch"></div>
 <div class="stick" id="stickL"><div class="ring"></div><div class="knob"></div></div>
-<div class="stick" id="stickR"><div class="ring"></div><div class="knob"></div></div>
+<div id="crosshair"></div>
+<button id="peeBtn" aria-label="Pee">PEE</button>
 <div class="hint" id="hintL"><b>&#9664; WALK</b>drag the left side</div>
-<div class="hint" id="hintR"><b>AIM + PEE &#9654;</b>drag the right side</div>
+<div class="hint" id="hintR"><b>LOOK &#9654;</b>drag the right side, hold PEE</div>
 
 <div id="hud">
   <div id="alive" class="glass">GNOMES LEFT <b id="aliveN">10</b>/10</div>
@@ -107,15 +115,15 @@
 <div class="overlay on" id="menu">
   <h1>PISS GNOMES</h1>
   <div class="sub">LAST GNOME STANDING</div>
-  <p>Ten gnomes. One enchanted forest. Pee is your only weapon, and the mist is closing in.</p>
+  <p>Ten gnomes. One psychedelic forest. Pee is your only weapon, and the mist is closing in.</p>
   <div class="rules">
     <div><b>&#128694;</b>Left thumb<br>walks</div>
-    <div><b>&#128166;</b>Right thumb<br>aims and pees</div>
+    <div><b>&#128166;</b>Right thumb<br>looks, hold PEE</div>
     <div><b>&#127796;</b>Be the last<br>gnome standing</div>
   </div>
   <button class="big" id="btnPlay">PLAY</button>
-  <p class="long">Your bladder empties as you pee and refills when you stop. Run dry and you have to wait for it to come back. Trees block your stream.</p>
-  <p class="keys">Computer: WASD to walk, mouse to aim, hold click or Space to pee.</p>
+  <p class="long">Look up to throw your stream further: the glowing ring shows where it lands. Your bladder empties as you pee and refills when you stop. Trees block your stream.</p>
+  <p class="keys">Computer: WASD to walk, mouse to look (click to capture it), hold click or Space to pee.</p>
 </div>
 
 <div class="overlay" id="over">

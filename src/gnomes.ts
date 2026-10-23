@@ -3,10 +3,12 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createGnome } from './gnome';
 import { lit } from './organic';
 import { HALF, type Forest } from './forest';
-import { RANGE, type PeeSystem } from './pee';
+import { RANGE, SPEED as DROP_SPEED, GRAVITY, type PeeSystem } from './pee';
 
 /** Gnomes are drawn bigger than the first-person game's, so you can see them from above. */
-const VISUAL_SCALE = 1.55;
+const VISUAL_SCALE = 1.25;
+/** Eye height of a gnome, for the first-person camera. */
+export const EYE = 1.5;
 const BODY_R = 0.55;
 const WALK = 5.2;
 export const MAX_HP = 100;
@@ -80,7 +82,15 @@ let nextId = 1;
 
 const ringGeo = new THREE.RingGeometry(0.95, 1.22, 24).rotateX(-Math.PI / 2);
 const barGeo = new THREE.PlaneGeometry(1, 1);
-const arrowGeo = new THREE.ConeGeometry(0.4, 0.9, 3).rotateX(Math.PI / 2).rotateY(Math.PI); // lies flat, tip towards -z
+const chevGeo = new THREE.ConeGeometry(0.34, 0.6, 4).rotateX(Math.PI); // points down
+
+/** Elevation that lands a stream on a target `dy` higher and `d` away (the low arc). */
+export function aimPitch(d: number, dy: number): number {
+  const v2 = DROP_SPEED * DROP_SPEED;
+  const disc = v2 * v2 - GRAVITY * (GRAVITY * d * d + 2 * dy * v2);
+  if (disc < 0) return Math.PI / 4;
+  return Math.atan((v2 - Math.sqrt(disc)) / (GRAVITY * d));
+}
 
 export class Gnome {
   /** Somebody went down. killer is null for the closing mist. */
@@ -97,8 +107,13 @@ export class Gnome {
   alive = true;
   kills = 0;
   diedAt = 0;
-  /** Where the stream goes, as a facing angle. */
+  /** Which way the gnome faces (the player's camera yaw). Facing is (sin yaw, cos yaw). */
   yaw = 0;
+  /** Looking up (+) or down (-). */
+  pitch = 0;
+  /** The player's stream can be nudged off the crosshair by the touch aim assist. */
+  assistYaw: number | null = null;
+  assistPitch: number | null = null;
 
   // controls, set by the player's input or the bot brain each frame
   moveX = 0;
@@ -114,7 +129,7 @@ export class Gnome {
   private legR: THREE.Group;
   private mat: THREE.MeshLambertMaterial;
   private wet = 0;
-  private walkPhase = Math.random() * 6;
+  walkPhase = Math.random() * 6;
   private deathT = 0;
   private lastHitBy: Gnome | null = null;
   private lastHitAt = -99;
@@ -122,7 +137,6 @@ export class Gnome {
   private shadow: THREE.Mesh;
   private bar: THREE.Group;
   private barFill: THREE.Mesh;
-  private arrow: THREE.Mesh | null = null;
 
   // bot brain
   private target: Gnome | null = null;
@@ -141,6 +155,7 @@ export class Gnome {
   private readonly bravery = 0.7 + Math.random() * 0.6;
   private mx = 0;
   private mz = 0;
+  private botPitch = 0;
 
   constructor(
     scene: THREE.Scene,
@@ -161,10 +176,10 @@ export class Gnome {
     this.shadow.position.y = 0.04;
     scene.add(this.shadow);
 
-    // a coloured ring that shows through the leaves so you can always find everybody
-    const ringMat = new THREE.MeshBasicMaterial({ color: isPlayer ? 0xffffff : color, transparent: true, opacity: isPlayer ? 0.95 : 0.8, depthTest: false });
-    this.marker = new THREE.Mesh(ringGeo, ringMat);
-    this.marker.renderOrder = 5;
+    // a coloured marker over the head that shows through the leaves, so you can always find everybody
+    this.marker = new THREE.Mesh(chevGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false }));
+    this.marker.renderOrder = 8;
+    this.marker.visible = !isPlayer;
     scene.add(this.marker);
 
     this.bar = new THREE.Group();
@@ -176,12 +191,6 @@ export class Gnome {
     this.barFill.position.z = 0.01;
     this.bar.add(bg, this.barFill);
     scene.add(this.bar);
-
-    if (isPlayer) {
-      this.arrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthTest: false }));
-      this.arrow.renderOrder = 5;
-      scene.add(this.arrow);
-    }
   }
 
   spawn(at: THREE.Vector3) {
@@ -196,9 +205,11 @@ export class Gnome {
     this.deathT = 0;
     this.lastHitBy = null;
     this.target = null;
-    this.yaw = Math.atan2(at.x, at.z) + (Math.random() - 0.5) * 0.6; // facing the middle
-    this.root.visible = this.shadow.visible = this.marker.visible = this.bar.visible = true;
-    if (this.arrow) this.arrow.visible = true;
+    this.yaw = Math.atan2(-at.x, -at.z) + (Math.random() - 0.5) * 0.6; // facing the middle
+    this.root.visible = this.shadow.visible = this.bar.visible = true;
+    this.marker.visible = !this.isPlayer;
+    this.pitch = 0;
+    this.assistYaw = this.assistPitch = null;
     this.root.rotation.set(0, 0, 0);
     this.mat.emissive.setHex(0);
     this.moveX = this.moveZ = 0;
@@ -234,7 +245,6 @@ export class Gnome {
     this.peeing = this.wantPee = false;
     if (killer && killer !== this) killer.kills++;
     this.marker.visible = this.bar.visible = false;
-    if (this.arrow) this.arrow.visible = false;
     Gnome.onDeath?.(this, killer && killer !== this ? killer : null);
   }
 
@@ -305,6 +315,7 @@ export class Gnome {
       const ang = Math.atan2(ax, az) + Math.sin(A.time * 2.1 + this.id * 1.7) * this.wobble;
       this.aimX = Math.sin(ang);
       this.aimZ = Math.cos(ang);
+      this.botPitch = aimPitch(Math.max(d, 1), 0.9 - 0.75 + tgt.pos.y);
       this.hasAim = true;
       const clear = !this.blocked(A, tgt.pos.x, tgt.pos.z);
       this.wantPee = d < RANGE * 0.97 && !scared && clear && !this.locked && this.bladder > 2 && Math.abs(angleDiff(this.yaw, ang)) < 0.35;
@@ -396,7 +407,7 @@ export class Gnome {
     let want: number | null = null;
     if (this.hasAim) want = Math.atan2(this.aimX, this.aimZ);
     else if (speedNow > 0.8) want = Math.atan2(this.vel.x, this.vel.z);
-    if (want !== null) {
+    if (want !== null && !this.isPlayer) {
       const turn = 1 - Math.exp(-(this.hasAim ? 22 : 12) * dt);
       this.yaw += angleDiff(this.yaw, want) * turn;
     }
@@ -405,9 +416,12 @@ export class Gnome {
     if (this.wantPee && !this.locked && this.bladder > 0 && !frozen) {
       this.peeing = true;
       this.bladder -= BLADDER_DRAIN * dt;
-      const fx = Math.sin(this.yaw);
-      const fz = Math.cos(this.yaw);
-      A.pee.emit(this, this.pos.x + fx * 0.4, this.pos.z + fz * 0.4, fx, fz, dt);
+      const sy = this.isPlayer ? this.assistYaw ?? this.yaw : this.yaw;
+      const sp = this.isPlayer ? this.assistPitch ?? this.pitch : this.botPitch;
+      const cp = Math.cos(sp);
+      const fx = Math.sin(sy);
+      const fz = Math.cos(sy);
+      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt);
       if (this.bladder <= 0) { this.bladder = 0; this.locked = true; this.peeing = false; }
     } else {
       this.peeing = false;
@@ -443,19 +457,14 @@ export class Gnome {
     this.mat.emissive.setRGB(this.wet * 1.4, this.wet * 1.1, 0);
     this.shadow.position.x = this.pos.x;
     this.shadow.position.z = this.pos.z;
-    this.marker.position.set(this.pos.x, 0.07, this.pos.z);
-    if (this.arrow) {
-      const fx = Math.sin(this.yaw);
-      const fz = Math.cos(this.yaw);
-      this.arrow.position.set(this.pos.x + fx * 1.9, 0.08, this.pos.z + fz * 1.9);
-      this.arrow.rotation.y = this.yaw + Math.PI;
-      (this.arrow.material as THREE.MeshBasicMaterial).opacity = this.peeing ? 0.25 : 0.8;
-    }
-    this.bar.position.set(this.pos.x, 4.8, this.pos.z);
+    this.marker.position.set(this.pos.x, 4.5 + Math.sin(this.walkPhase * 0.5 + this.id) * 0.1, this.pos.z);
+    this.bar.position.set(this.pos.x, 3.9, this.pos.z);
     const f = Math.max(0, this.hp / MAX_HP);
     this.barFill.scale.set(1.42 * f, 0.18, 1);
     this.barFill.position.x = -0.71 * (1 - f);
     this.bar.visible = this.alive && !this.isPlayer;
+    // you cannot see your own gnome from inside its head
+    if (this.isPlayer && this.alive) this.root.visible = this.shadow.visible = false;
   }
 
   /** Face the bar towards the camera (called once per frame by the game). */

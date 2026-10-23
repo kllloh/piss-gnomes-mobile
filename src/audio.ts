@@ -69,6 +69,81 @@ export class Sfx {
     o.stop(t + dur + 0.02);
   }
 
+  // --- a quiet generative trance: a 7-step arpeggio over a pulsing bass, through an echo ---------------------
+
+  private musicOn = false;
+  private nextStep = 0;
+  private step = 0;
+  private root = 38; // MIDI D2
+  private lastBeat = -9;
+  private delay!: DelayNode;
+
+  /** 0..1, jumps on each beat and fades: the visuals pulse with it. */
+  get beat(): number {
+    return this.ctx ? Math.exp(-(this.ctx.currentTime - this.lastBeat) * 5) : 0;
+  }
+
+  startMusic() {
+    if (!this.ctx || this.musicOn) return;
+    this.musicOn = true;
+    const bus = this.ctx.createGain();
+    bus.gain.value = 0.55;
+    bus.connect(this.master);
+    this.delay = this.ctx.createDelay(1);
+    this.delay.delayTime.value = 0.3;
+    const fb = this.ctx.createGain();
+    fb.gain.value = 0.42;
+    this.delay.connect(fb).connect(this.delay);
+    this.delay.connect(bus);
+    this.bus = bus;
+    this.nextStep = this.ctx.currentTime + 0.1;
+    setInterval(() => this.schedule(), 80);
+  }
+
+  private bus!: GainNode;
+
+  private note(midi: number, t: number, dur: number, type: OscillatorType, vol: number, cutoff: number, echo: boolean) {
+    const c = this.ctx!;
+    const o = c.createOscillator();
+    o.type = type;
+    o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+    const f = c.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(cutoff, t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(120, cutoff * 0.25), t + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(f).connect(g);
+    g.connect(this.bus);
+    if (echo) g.connect(this.delay);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+
+  private schedule() {
+    if (!this.ctx) return;
+    const SCALE = [0, 1, 4, 5, 7, 8, 10, 12, 13, 16, 17, 19];
+    const sixteenth = 60 / 108 / 4;
+    while (this.nextStep < this.ctx.currentTime + 0.25) {
+      const t = this.nextStep;
+      const s = this.step;
+      if (s % 4 === 0) { this.lastBeat = t; }
+      if (s % 16 === 0 && Math.random() < 0.5) this.root = [38, 38, 41, 36, 43][Math.floor(Math.random() * 5)];
+      // bass on the beat, one octave drop sometimes
+      if (s % 4 === 0) this.note(this.root - (s % 8 === 0 ? 0 : 12 * (Math.random() < 0.3 ? 1 : 0)), t, 0.34, 'sawtooth', 0.2, 700, false);
+      // 7-step arpeggio loop against the 16-step bar: it never lines up the same way twice
+      if (s % 7 !== 3) {
+        const deg = SCALE[(s * 5 + Math.floor(s / 16) * 3) % SCALE.length];
+        this.note(this.root + 24 + deg, t, 0.22, 'triangle', 0.1, 2400, true);
+      }
+      if (s % 32 === 0) this.note(this.root + 36 + SCALE[Math.floor(Math.random() * 7)], t, 1.8, 'sine', 0.06, 3000, true);
+      this.nextStep += sixteenth;
+      this.step = (this.step + 1) % 224;
+    }
+  }
+
   hurt() { this.tone(240, 90, 0.16, 'square', 0.18); }
   pop() { this.tone(520, 160, 0.12, 'triangle', 0.16); }
   beep(high = false) { this.tone(high ? 880 : 520, high ? 880 : 520, 0.12, 'square', 0.14); }

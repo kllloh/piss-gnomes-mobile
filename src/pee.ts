@@ -3,13 +3,12 @@ import type { Forest } from './forest';
 import type { Gnome } from './gnomes';
 
 const MAX = 1400;
-export const SPEED = 12; // horizontal metres per second
-const LIFT = 2.4; // initial upward speed
-const GRAVITY = 9;
-const LIFE = 1.2;
+export const SPEED = 16; // metres per second out of the gnome
+export const GRAVITY = 9;
+const LIFE = 2;
 export const RATE = 55; // droplets per second
 /** Roughly how far a stream carries. Bots use it to decide when to fire. */
-export const RANGE = 7.6;
+export const RANGE = 11;
 const PUDDLES = 64;
 
 const dummy = new THREE.Object3D();
@@ -38,7 +37,7 @@ export class PeeSystem {
   private pNext = 0;
 
   constructor(scene: THREE.Scene) {
-    this.mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.17, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAX);
+    this.mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.11, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAX);
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
     this.mesh.setColorAt(0, C_BOT);
@@ -66,29 +65,41 @@ export class PeeSystem {
     this.puddles.instanceMatrix.needsUpdate = true;
   }
 
-  /** Emit this frame's share of a stream from gnome `g` heading along (dx, dz). */
-  emit(g: Gnome, ox: number, oz: number, dx: number, dz: number, dt: number) {
+  /** Emit this frame's share of a stream from gnome `g`, leaving (ox, oy, oz) along the unit direction (dx, dy, dz). */
+  emit(g: Gnome, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, dt: number) {
     const a = (this.acc.get(g.id) ?? 0) + dt * RATE;
     const n = Math.floor(a);
     this.acc.set(g.id, a - n);
     const col = g.isPlayer ? C_PLAYER : C_BOT;
-    const sx = -dz; // sideways, for the spread
-    const sz = dx;
     for (let k = 0; k < n && this.count < MAX; k++) {
       const i = this.count++;
-      const sp = SPEED * (0.95 + Math.random() * 0.1);
-      const side = (Math.random() - 0.5) * 0.9;
+      const sp = SPEED * (0.96 + Math.random() * 0.08);
       const back = ((k + Math.random()) / Math.max(1, n)) * dt; // spread this frame's droplets along its travel
-      this.vx[i] = dx * sp + sx * side;
-      this.vz[i] = dz * sp + sz * side;
-      this.vy[i] = LIFT + (Math.random() - 0.5) * 0.7;
+      const spread = 0.035 * SPEED;
+      this.vx[i] = dx * sp + (Math.random() - 0.5) * spread;
+      this.vy[i] = dy * sp + (Math.random() - 0.5) * spread;
+      this.vz[i] = dz * sp + (Math.random() - 0.5) * spread;
       this.px[i] = ox + this.vx[i] * back;
-      this.py[i] = 0.75 + this.vy[i] * back;
+      this.py[i] = oy + this.vy[i] * back;
       this.pz[i] = oz + this.vz[i] * back;
       this.life[i] = LIFE;
       this.owner[i] = g;
       this.mesh.setColorAt(i, col);
     }
+  }
+
+  /** Where a stream aimed this way would come down (for the aiming marker). */
+  landing(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, forest: Forest, out: { x: number; z: number }): boolean {
+    const vx = dx * SPEED;
+    const vy = dy * SPEED;
+    const vz = dz * SPEED;
+    for (let t = 0.04; t < LIFE; t += 0.04) {
+      const x = ox + vx * t;
+      const y = oy + vy * t - 0.5 * GRAVITY * t * t;
+      const z = oz + vz * t;
+      if (y < 0.04 || forest.pointHit(x, y, z)) { out.x = x; out.z = z; return true; }
+    }
+    return false;
   }
 
   private remove(i: number) {
@@ -133,7 +144,7 @@ export class PeeSystem {
         if (!t.alive || t === shooter) continue;
         const ddx = t.pos.x - x;
         const ddz = t.pos.z - z;
-        if (ddx * ddx + ddz * ddz < 0.5 && y < 2.7) { hit = t; break; }
+        if (ddx * ddx + ddz * ddz < 0.45 && y < 2.4) { hit = t; break; }
       }
       if (hit) {
         onHit(hit, shooter, x, z);

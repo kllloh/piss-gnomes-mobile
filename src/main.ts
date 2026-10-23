@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Forest, HALF } from './forest';
-import { Gnome, MAX_HP, type Arena } from './gnomes';
+import { Gnome, MAX_HP, EYE, aimPitch, type Arena } from './gnomes';
+import { Trip } from './trip';
 import { PeeSystem, RANGE } from './pee';
 import { Input } from './input';
 import { Sfx } from './audio';
@@ -18,38 +19,31 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 
 const canvas = $<HTMLCanvasElement>('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-let pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
 renderer.setPixelRatio(pixelRatio);
 
 const scene = new THREE.Scene();
-const SKY = 0x140a2e;
-scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, 42, 92);
-scene.add(new THREE.HemisphereLight(0xc8b8ff, 0x2a5a48, 1.15));
+scene.fog = new THREE.Fog(0x140a2e, 16, 78);
+scene.add(new THREE.HemisphereLight(0xc8b8ff, 0x2a5a48, 1.25));
 const sun = new THREE.DirectionalLight(0xfff2d0, 1.5);
 sun.position.set(-0.4, 1, 0.5);
 scene.add(sun);
 
-const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 140);
-const TILT = THREE.MathUtils.degToRad(63);
-let camDist = 24;
-const camPos = new THREE.Vector3();
-const camLook = new THREE.Vector3();
+const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 160);
+camera.rotation.order = 'YXZ';
+const trip = new Trip(renderer, scene);
 
 function fit() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  const aspect = w / h;
-  // about 17 world units tall in landscape, 15 wide in portrait, so a gnome is the same size on any screen
-  const visible = aspect >= 1 ? 17 : 15 / aspect;
-  camDist = THREE.MathUtils.clamp(visible / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))), 20, 46);
+  camera.fov = w / h >= 1 ? 72 : 88; // a taller view needs a wider lens to see the same width
   camera.updateProjectionMatrix();
+  trip.resize();
 }
 window.addEventListener('resize', fit);
 window.addEventListener('orientationchange', () => setTimeout(fit, 250));
-fit();
 
 // --- the game world ------------------------------------------------------------------------------------
 
@@ -77,10 +71,11 @@ for (let i = 1; i < 10; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i]
 const gnomes: Gnome[] = [player, ...bots];
 
 const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true };
+fit();
 
 // --- input ------------------------------------------------------------------------------------------------
 
-const input = new Input($('touch'));
+const input = new Input($('touch'), $('peeBtn'));
 const coarse = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (!coarse) document.body.classList.add('desktop');
 
@@ -139,7 +134,15 @@ function drawMinimap() {
     mapCtx.arc(px(g.pos.x), px(g.pos.z), g.isPlayer ? 4.5 : 3.2, 0, Math.PI * 2);
     mapCtx.fillStyle = hex(g.isPlayer ? 0xffffff : g.color);
     mapCtx.fill();
-    if (g.isPlayer) { mapCtx.strokeStyle = '#19e3ff'; mapCtx.stroke(); }
+    if (g.isPlayer) {
+      mapCtx.strokeStyle = '#19e3ff';
+      mapCtx.stroke();
+      // the way you are facing
+      mapCtx.beginPath();
+      mapCtx.moveTo(px(g.pos.x), px(g.pos.z));
+      mapCtx.lineTo(px(g.pos.x + Math.sin(g.yaw) * 7), px(g.pos.z + Math.cos(g.yaw) * 7));
+      mapCtx.stroke();
+    }
   }
 }
 
@@ -178,6 +181,7 @@ function startMatch() {
   playerPlace = 0;
   overTimer = 0;
   state = 'countdown';
+  paused = false;
   $('feed').innerHTML = '';
   document.body.classList.remove('inmenu');
   $('menu').classList.remove('on');
@@ -185,9 +189,7 @@ function startMatch() {
   $('pause').classList.remove('on');
   $('aliveN').textContent = '10';
   banner('LAST GNOME STANDING', '', 0);
-  // snap the camera onto the player
-  camLook.set(player.pos.x, 0.5, player.pos.z);
-  camPos.set(player.pos.x, camLook.y + camDist * Math.sin(TILT), player.pos.z + camDist * Math.cos(TILT));
+  input.takeLook();
   input.release();
 }
 
@@ -275,10 +277,10 @@ function goFullscreen() {
 const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 $('btnPlay').addEventListener('click', () => {
   startMatch();
-  try { sfx.init(); } catch { /* no sound is better than no game */ }
+  try { sfx.init(); sfx.startMusic(); } catch { /* no sound is better than no game */ }
   if (!isApple) goFullscreen();
 });
-$('btnAgain').addEventListener('click', () => { startMatch(); try { sfx.init(); } catch { /* ignore */ } });
+$('btnAgain').addEventListener('click', () => { startMatch(); try { sfx.init(); sfx.startMusic(); } catch { /* ignore */ } });
 $('btnWatch').addEventListener('click', () => {
   $('over').classList.remove('on');
   spectating = true;
@@ -298,42 +300,55 @@ document.addEventListener('touchmove', (e) => { if ((e.target as HTMLElement).cl
 
 // --- the frame -----------------------------------------------------------------------------------------------------------------
 
-const _v = new THREE.Vector3();
 let hintsFaded = false;
+const landing = { x: 0, z: 0 };
+let warp = 0.55;
+const fogCol = new THREE.Color();
+const landMark = new THREE.Mesh(
+  new THREE.RingGeometry(0.35, 0.55, 20).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xfff04a, transparent: true, opacity: 0.6, depthTest: false }),
+);
+landMark.renderOrder = 9;
+landMark.visible = false;
+scene.add(landMark);
 
 function playerControls() {
-  // where is the player on screen (for the mouse)?
-  _v.set(player.pos.x, 0.8, player.pos.z).project(camera);
-  const cx = (_v.x * 0.5 + 0.5) * window.innerWidth;
-  const cy = (-_v.y * 0.5 + 0.5) * window.innerHeight;
-  input.poll(cx, cy);
-  player.moveX = input.moveX;
-  player.moveZ = input.moveZ;
-  player.hasAim = input.hasAim;
+  input.poll();
+  const [ly, lp] = input.takeLook();
+  player.yaw -= ly; // dragging right turns right
+  player.pitch = Math.max(-0.9, Math.min(1.25, player.pitch + lp));
+  // the stick is relative to where you are facing
+  const fx = Math.sin(player.yaw);
+  const fz = Math.cos(player.yaw);
+  player.moveX = fx * input.moveF - fz * input.moveX;
+  player.moveZ = fz * input.moveF + fx * input.moveX;
+  player.hasAim = false;
   player.wantPee = input.fire;
-  if (input.hasAim) {
-    let ang = Math.atan2(input.aimX, input.aimZ);
-    if (input.touch) {
-      // a thumb is not a mouse: nudge the aim towards whoever is nearly in line
-      let best = 0;
-      let bd = 99;
-      for (const g of bots) {
-        if (!g.alive) continue;
-        const dx = g.pos.x - player.pos.x;
-        const dz = g.pos.z - player.pos.z;
-        const d = Math.hypot(dx, dz);
-        if (d > RANGE + 1.5) continue;
-        let diff = Math.atan2(dx, dz) - ang;
-        while (diff > Math.PI) diff -= 2 * Math.PI;
-        while (diff < -Math.PI) diff += 2 * Math.PI;
-        if (Math.abs(diff) < 0.38 && Math.abs(diff) < bd) { bd = Math.abs(diff); best = diff; }
-      }
-      ang += best * 0.6;
+
+  // a thumb is not a mouse: when peeing, drift the stream towards anyone nearly under the crosshair
+  player.assistYaw = player.assistPitch = null;
+  if (input.touch && input.fire) {
+    let best: Gnome | null = null;
+    let bd = 0.3;
+    let byaw = 0;
+    for (const g of bots) {
+      if (!g.alive) continue;
+      const dx = g.pos.x - player.pos.x;
+      const dz = g.pos.z - player.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > RANGE + 2 || d < 1) continue;
+      let diff = Math.atan2(dx, dz) - player.yaw;
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      if (Math.abs(diff) < bd) { bd = Math.abs(diff); best = g; byaw = diff; }
     }
-    player.aimX = Math.sin(ang);
-    player.aimZ = Math.cos(ang);
+    if (best) {
+      const d = Math.hypot(best.pos.x - player.pos.x, best.pos.z - player.pos.z);
+      player.assistYaw = player.yaw + byaw * 0.7;
+      player.assistPitch = player.pitch + (aimPitch(d, 0.15) - player.pitch) * 0.5;
+    }
   }
-  if (!hintsFaded && (input.moveX || input.moveZ || input.fire)) {
+  if (!hintsFaded && (input.moveX || input.moveF || input.fire)) {
     hintsFaded = true;
     $('hintL').style.opacity = $('hintR').style.opacity = '0';
   }
@@ -419,7 +434,7 @@ function frame(nowMs: number, lastMs: number) {
     updateHud();
   }
 
-  // --- camera: high above and a little behind, looking down at whoever we follow ---
+  // --- camera: the player's eyes (or the eyes of whoever we are watching) ---
   let focus: Gnome | null = player.alive ? player : null;
   if (!focus) {
     if (!watchTarget || !watchTarget.alive) {
@@ -433,47 +448,64 @@ function frame(nowMs: number, lastMs: number) {
     }
     focus = watchTarget ?? player;
   }
+  const t = nowMs / 1000;
   if (state === 'menu') {
-    // slow orbit over the forest behind the menu
-    const a = nowMs * 0.00012;
-    camLook.set(Math.cos(a) * 14, 0.5, Math.sin(a) * 14);
-    camPos.set(camLook.x, camDist * Math.sin(TILT) * 1.1, camLook.z + camDist * Math.cos(TILT) * 1.1);
-    focus = null;
+    // a slow drift through the trees behind the menu
+    const a = t * 0.08;
+    camera.position.set(Math.cos(a) * 16, 2.4, Math.sin(a) * 16);
+    camera.rotation.set(-0.08, -a - Math.PI / 2 + 0.6, 0);
   } else {
-    const k = 1 - Math.exp(-9 * dt);
-    camLook.x += (focus.pos.x - camLook.x) * k;
-    camLook.z += (focus.pos.z - camLook.z) * k;
-    camLook.y = 0.5;
-    camPos.set(camLook.x, camLook.y + camDist * Math.sin(TILT), camLook.z + camDist * Math.cos(TILT));
+    const bob = Math.sin(focus.walkPhase) * 0.05 * Math.min(1, Math.hypot(focus.vel.x, focus.vel.z) / 3);
+    camera.position.set(focus.pos.x, EYE + bob + (focus.alive ? 0 : 0.4), focus.pos.z);
+    camera.rotation.set(focus.alive ? (focus === player ? focus.pitch : -0.04) : -0.4, focus.yaw + Math.PI, 0);
   }
-  camera.position.copy(camPos);
-  camera.lookAt(camLook);
   for (const g of gnomes) g.billboard(camera);
+
+  // the landing marker: where your stream will come down
+  if (state !== 'menu' && player.alive) {
+    const cp = Math.cos(player.pitch);
+    const fx = Math.sin(player.yaw) * cp;
+    const fz = Math.cos(player.yaw) * cp;
+    const ok = pee.landing(player.pos.x + Math.sin(player.yaw) * 0.5, 0.75, player.pos.z + Math.cos(player.yaw) * 0.5, fx, Math.sin(player.pitch), fz, forest, landing);
+    landMark.visible = ok;
+    landMark.position.set(landing.x, 0.08, landing.z);
+    landMark.rotation.z = t * 1.5;
+    (landMark.material as THREE.MeshBasicMaterial).opacity = player.peeing ? 0.9 : 0.5;
+  } else landMark.visible = false;
 
   mistWall.scale.set(arena.ringR, 1, arena.ringR);
   mistLine.scale.set(arena.ringR, 1, arena.ringR);
-  forest.update(dt, nowMs / 1000, camLook.x, camLook.z);
+  forest.update(dt, t, 1e5, 1e5); // the leaves only shrank away from the top-down camera
+  scene.fog!.color.copy(trip.horizon(t, fogCol));
 
-  renderer.render(scene, camera);
+  // the trip: sky, spores, and a warp that gets stronger the more damage you have taken
+  const beat = sfx.beat;
+  const hurtNow = state === 'menu' ? 0 : 1 - Math.max(0, player.hp) / MAX_HP;
+  const out = state !== 'menu' && player.alive && Math.hypot(player.pos.x, player.pos.z) > arena.ringR;
+  warp += ((0.55 + hurtNow * 0.9 + (out ? 0.5 : 0)) - warp) * Math.min(1, dt * 2);
+  trip.update(t, camera.position, beat);
+  trip.render(scene, camera, t, warp, beat, 0);
 }
 
-// adaptive resolution: if a phone struggles, render fewer pixels rather than stutter
+// adaptive quality: if a phone struggles, render fewer pixels, then tone the trip down, rather than stutter
 let slow = 0;
-let fast = 0;
 let last = performance.now();
 function loop(now: number) {
   requestAnimationFrame(loop);
   const delta = now - last;
   frame(now, last);
   last = now;
-  if (delta > 28) { slow++; fast = 0; } else { fast++; slow = Math.max(0, slow - 1); }
-  if (slow > 40 && pixelRatio > 1) {
-    pixelRatio = Math.max(1, pixelRatio - 0.25);
-    renderer.setPixelRatio(pixelRatio);
-    fit();
+  if (delta > 30) slow++; else slow = Math.max(0, slow - 1);
+  if (slow > 45) {
     slow = 0;
+    if (pixelRatio > 1) {
+      pixelRatio = Math.max(1, pixelRatio - 0.25);
+      renderer.setPixelRatio(pixelRatio);
+      fit();
+    } else if (trip.level > 0) {
+      trip.level--;
+    }
   }
-  void fast;
 }
 requestAnimationFrame((t) => { last = t; loop(t); });
 
