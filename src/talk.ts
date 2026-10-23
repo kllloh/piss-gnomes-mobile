@@ -70,6 +70,7 @@ export const LINES: Record<string, string[]> = {
     'COCKTAIL TIME! Shake it, don\'t stir it!', 'I am a walking chemistry set!', 'Two potions! TWO!', 'What happens if I mix them? SCIENCE!', 'This pee has LAYERS!',
     'I have mixed the pee of destiny!', 'Mixology! Wee-ology!', 'Oh no. Oh YES. Mixed wee!',
   ],
+  'hi:nathaniel': ['Hi Nathaniel!', 'Hello, Nathaniel!', 'Heyyy Nathaniel!', 'Hi! Hi! Hi Nathaniel!', 'Nice glasses, Nathaniel!'],
   mist: [
     'THE MIST! IT GROWS!', 'The forest has had ENOUGH of us!', 'Magenta fog! Somebody call a wizard!', 'The mist is hungry!', 'Run! Walk! Panic!',
   ],

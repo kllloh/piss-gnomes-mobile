@@ -22,6 +22,18 @@
   .glass { background: #fff; border: 4px solid var(--pink); border-radius: 18px; box-shadow: 0 4px 0 var(--shadow); }
   .outline { color: #fff; text-shadow: 0 2px 0 var(--ink), 0 -2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 2px 2px 0 var(--ink), -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink), 0 4px 0 var(--shadow); }
 
+  /* lens flare: glare and ghosts from the sun, drawn over the picture but under the interface */
+  #flare { position: fixed; inset: 0; pointer-events: none; z-index: 3; overflow: hidden; }
+  .fl { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; mix-blend-mode: screen; }
+  .fl.glow { width: 70vmin; height: 70vmin; margin: -35vmin 0 0 -35vmin; border-radius: 50%; background: radial-gradient(circle, rgba(255,252,220,.95) 0%, rgba(255,232,160,.5) 16%, rgba(255,205,125,.14) 42%, transparent 70%); }
+  .fl.streak { width: 130vmin; height: 5vmin; margin: -2.5vmin 0 0 -65vmin; background: radial-gradient(ellipse, rgba(255,246,210,.8), transparent 68%); }
+  .fl.g1 { width: 9vmin; height: 9vmin; margin: -4.5vmin 0 0 -4.5vmin; border-radius: 50%; background: radial-gradient(circle, rgba(255,140,200,.6), transparent 70%); }
+  .fl.g2 { width: 15vmin; height: 15vmin; margin: -7.5vmin 0 0 -7.5vmin; border-radius: 50%; background: radial-gradient(circle, transparent 48%, rgba(120,220,255,.55) 60%, transparent 74%); }
+  .fl.g3 { width: 7vmin; height: 7vmin; margin: -3.5vmin 0 0 -3.5vmin; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: rgba(150,255,175,.55); }
+  .fl.g4 { width: 24vmin; height: 24vmin; margin: -12vmin 0 0 -12vmin; border-radius: 50%; background: radial-gradient(circle, rgba(255,225,130,.28), transparent 68%); }
+  .fl.g5 { width: 12vmin; height: 12vmin; margin: -6vmin 0 0 -6vmin; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: rgba(205,160,255,.5); }
+  body.inmenu #flare { display: none; }
+
   /* touch layer: the whole screen, left half walks, right half looks */
   #touch { position: fixed; inset: 0; touch-action: none; z-index: 5; }
   .stick { position: fixed; display: none; width: 0; height: 0; pointer-events: none; z-index: 6; }
@@ -154,6 +166,7 @@
 <div class="hint" id="hintL"><b>&#9664; WALK</b>drag the left side</div>
 <div class="hint" id="hintR"><b>LOOK &#9654;</b>drag the right side, hold PEE</div>
 
+<div id="flare"><i class="fl glow"></i><i class="fl streak"></i><i class="fl ghost g1"></i><i class="fl ghost g2"></i><i class="fl ghost g3"></i><i class="fl ghost g4"></i><i class="fl ghost g5"></i></div>
 <div id="bubbles"></div>
 <div id="hud">
   <div id="alive" class="glass">GNOMES LEFT <b id="aliveN">10</b>/10</div>
@@ -216,7 +229,7 @@
             <ul><li>Little blocky beetles wander about and fart out a bonus. Grab it before it vanishes (16 s):</li>
             <li><span class="chip" style="background:#19b8e0">SPEED</span> <span class="chip" style="background:#ff4a6a">HEALTH</span> <span class="chip" style="background:#e02bb0">BOUNCE</span> <span class="chip" style="background:#e0a800">BIG GULP</span></li></ul></div>
           <div class="card"><h3>NATHANIEL</h3>
-            <ul><li>The tall metalhead in glasses (a <b>gold diamond</b> on the map). <b>Touch him</b> for <b>Wizard Mode</b>: 20 seconds where nothing can hurt you.</li></ul></div>
+            <ul><li>The tall metalhead in glasses (a <b>gold diamond</b> on the map). <b>Say hi:</b> walk up close to him and he gives you <b>Wizard Mode</b>: 20 seconds where nothing can hurt you.</li></ul></div>
         </section>
         <section class="slide">
           <div class="card"><h3>6 &middot; MODES AND TIPS</h3>

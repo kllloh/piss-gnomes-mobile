@@ -223,9 +223,9 @@ export class Nathaniel {
       forest.collide(this.pos, 0.6);
     }
     if (target) {
-      // he only speaks when you touch him: that is, when you walk right up against him
+      // he only speaks when you say hi: that is, when you walk up close to him
       const dd = Math.hypot(target.x - this.pos.x, target.z - this.pos.z);
-      if (dd < 2.6 && this.touchT <= 0) {
+      if (dd < 5.5 && this.touchT <= 0) {
         this.touchT = 3;
         out.shout = true;
         if (this.cooldown <= 0) {

@@ -60,7 +60,7 @@ export function lit(params: THREE.MeshLambertMaterialParameters = {}): THREE.Mes
 }
 
 /** A tiny, chunky, low-res texture (nearest-neighbour, so the pixels show), used for ground, stone and wood. */
-export function makePaintTexture(lo = 170, size = 32): THREE.CanvasTexture {
+export function makePaintTexture(lo = 170, size = 32, smooth = false): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d')!;
@@ -79,8 +79,9 @@ export function makePaintTexture(lo = 170, size = 32): THREE.CanvasTexture {
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.magFilter = THREE.NearestFilter;
-  t.minFilter = THREE.NearestMipmapLinearFilter;
+  t.magFilter = smooth ? THREE.LinearFilter : THREE.NearestFilter;
+  t.minFilter = smooth ? THREE.LinearMipmapLinearFilter : THREE.NearestMipmapLinearFilter;
+  if (smooth) t.anisotropy = 8;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }

@@ -35,7 +35,7 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Banter:** every gnome shouts unhinged lines in speech bubbles, plus a death cry when they go down (spoken aloud with
   your device's speech voices; the sound button mutes them).
 - **Nathaniel:** a tall, dorky metalhead (glasses, skull band T-shirt, blue jeans) three gnomes high who wanders the forest
-  shouting his own name. Walk up to him (he shows as a gold diamond on the minimap) and he gives you **Wizard Mode**: 20
+  shouting his own name. Say hi by walking up close to him (he shows as a gold diamond on the minimap) and he gives you **Wizard Mode**: 20
   seconds of being unhurtable, with rainbow pee. He cannot be hurt and only blesses you every 40 seconds.
 - **Bugs:** six big beetles wander the forest, stop, shudder and fart out a glowing bonus (it blinks and vanishes after 16 s):
   **Speed** (10 s of running much faster), **Health** (+50), **Bounce** (12 s of hopping, which also makes you harder to hit) or
@@ -55,3 +55,10 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   acid bites twice as hard) and the **Rainbow Cocktail** (all three: rainbow pee that leaves victims dizzy).
 - **Start screen:** a swipeable How To Play slider (arrows, dots and swipe).
 - **Speech bubbles** fade with distance, and the beetles are smaller.
+- **Say hi to Nathaniel:** get within a few steps and your gnome says hi; he answers "Nathaniel!" and hands out Wizard Mode.
+- **Smoother, softer picture:** filtered grass, higher render resolution, anti-aliasing, a subtle ink outline around every shape
+  (found from the depth buffer, so it also catches the farting beetles and the gnomes), and a lens flare from the sun that is hidden
+  when a mushroom cap is in the way.
+- **Tuned to your device:** at start the game picks a quality level from the hardware (`?quality=low|mid|high` to force one;
+  see the console for why). While you play a frame-time governor lowers the render resolution, then turns the post pass off, if frames run slow,
+  and brings the sharpness back when there is headroom. 120 Hz screens are held to about 60 fps, and the screen is kept awake during a match.

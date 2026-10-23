@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Quality } from './quality';
 
 /** Cosine palette: smooth rainbow-ish colour from a single number. */
 function palette(t: number, out: THREE.Color): THREE.Color {
@@ -96,6 +97,10 @@ uniform float pulse;
 uniform float tint;
 uniform float mode;
 uniform float modeAmt;
+uniform sampler2D tDepth;
+uniform float cnear;
+uniform float cfar;
+uniform float outlineAmt;
 uniform vec2 res;
 varying vec2 vUv;
 float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -103,6 +108,22 @@ float vnoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
   f = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash12(i), hash12(i + vec2(1, 0)), f.x), mix(hash12(i + vec2(0, 1)), hash12(i + vec2(1, 1)), f.x), f.y);
+}
+float linZ(float d) {
+  float z = d * 2.0 - 1.0;
+  return (2.0 * cnear * cfar) / (cfar + cnear - z * (cfar - cnear));
+}
+// a soft ink line wherever depth jumps (shape silhouettes). The second difference is ~0 on flat ground, so only real edges show.
+float inkEdge(vec2 p) {
+  vec2 px = 1.0 / res;
+  float z0 = linZ(texture2D(tDepth, p).r);
+  float zr = linZ(texture2D(tDepth, p + vec2(px.x, 0.0)).r);
+  float zl = linZ(texture2D(tDepth, p - vec2(px.x, 0.0)).r);
+  float zu = linZ(texture2D(tDepth, p + vec2(0.0, px.y)).r);
+  float zd = linZ(texture2D(tDepth, p - vec2(0.0, px.y)).r);
+  float e = (abs(zr + zl - 2.0 * z0) + abs(zu + zd - 2.0 * z0)) / min(z0, min(min(zr, zl), min(zu, zd)));
+  float fade = 1.0 - smoothstep(30.0, 100.0, min(z0, min(min(zr, zl), min(zu, zd))));
+  return smoothstep(0.05, 0.16, e) * fade;
 }
 float lum(vec3 c) { return sqrt(max(dot(c, vec3(0.299, 0.587, 0.114)), 0.0)); }
 vec3 hueRotate(vec3 c, float a) {
@@ -131,7 +152,7 @@ void main() {
   col = hueRotate(col, amp * (sin(time * 0.23) * 0.9 + r * 1.2 * sin(time * 0.31) + pulse * 0.25) + tint);
   float l = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(l), col, 1.0 + 0.55 * amp);
-  col *= 1.0 - r * r * (0.5 + 0.2 * amp);
+  col *= 1.0 - r * r * (0.16 + 0.5 * amp);
   col += amp * pulse * 0.05 * vec3(1.0, 0.3, 0.8);
   col = max(col, 0.0);
   if (modeAmt > 0.001) {
@@ -151,6 +172,7 @@ void main() {
       col = mix(col, vec3(lum2) * vec3(1.2, 1.0, 0.8), 0.15 * modeAmt);
     }
   }
+  if (outlineAmt > 0.001) col = mix(col, vec3(0.04, 0.015, 0.1), inkEdge(uv) * 0.5 * outlineAmt);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -172,7 +194,16 @@ export class Trip {
     mode: { value: 0 },
     modeAmt: { value: 0 },
     res: { value: new THREE.Vector2(1, 1) },
+    tDepth: { value: null as THREE.Texture | null },
+    cnear: { value: 0.1 },
+    cfar: { value: 160 },
+    outlineAmt: { value: 1 },
   };
+  /** Camera planes, for turning depth back into distance. */
+  setPlanes(near: number, far: number) {
+    this.uniforms.cnear.value = near;
+    this.uniforms.cfar.value = far;
+  }
   private sky: THREE.Mesh;
   private spores: THREE.InstancedMesh;
   private sporeSeed: Float32Array;
@@ -186,7 +217,8 @@ export class Trip {
   mode = 1;
   modeAmt = 0;
 
-  constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
+  constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, private q: Quality) {
+    this.level = q.post ? 2 : 0;
     // sky dome that always sits on the camera
     this.sky = new THREE.Mesh(
       new THREE.SphereGeometry(90, 32, 16),
@@ -205,7 +237,7 @@ export class Trip {
     scene.add(this.sky);
 
     // glowing spores floating around you
-    const N = 240;
+    const N = q.spores;
     this.spores = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial({ color: 0xffffff }), N);
     this.spores.frustumCulled = false;
     this.spores.setColorAt(0, new THREE.Color(1, 1, 1));
@@ -214,7 +246,7 @@ export class Trip {
     scene.add(this.spores);
 
     try {
-      const ok = renderer.capabilities.isWebGL2 && (renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float'));
+      const ok = q.post && renderer.capabilities.isWebGL2 && (renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float'));
       if (ok) {
         this.makeTarget();
         this.quad = new THREE.Mesh(
@@ -233,8 +265,11 @@ export class Trip {
   private makeTarget() {
     this.renderer.getDrawingBufferSize(this.size);
     this.rt?.dispose();
-    this.rt = new THREE.WebGLRenderTarget(this.size.x, this.size.y, { type: THREE.HalfFloatType, samples: 2 });
+    const depth = new THREE.DepthTexture(this.size.x, this.size.y);
+    depth.type = THREE.UnsignedIntType;
+    this.rt = new THREE.WebGLRenderTarget(this.size.x, this.size.y, { type: THREE.HalfFloatType, samples: this.q.samples, depthTexture: depth });
     this.uniforms.tDiffuse.value = this.rt.texture;
+    this.uniforms.tDepth.value = depth;
     this.uniforms.res.value.set(this.size.x, this.size.y);
   }
 
@@ -287,7 +322,7 @@ export class Trip {
   /** Render the scene, through the warp pass if it is available and switched on. */
   render(scene: THREE.Scene, camera: THREE.Camera, t: number, amp: number, beat: number, tint: number) {
     const a = amp * (this.level === 2 ? 1 : this.level === 1 ? 0.4 : 0);
-    if (!this.postOk || !this.rt || !this.quad || this.level === 0 || (a < 0.02 && this.modeAmt < 0.02)) {
+    if (!this.postOk || !this.rt || !this.quad || this.level === 0) {
       this.renderer.setRenderTarget(null);
       this.renderer.render(scene, camera);
       return;

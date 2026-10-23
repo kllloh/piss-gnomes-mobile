@@ -5,6 +5,7 @@ import { Potions } from './potions';
 import { Banter, modTagline } from './talk';
 import { Nathaniel } from './nathaniel';
 import { Bugs, BONUS_INFO, type BonusKind } from './bugs';
+import { detectQuality } from './quality';
 import { Trip } from './trip';
 import { PeeSystem, RANGE, PEE, MIX, KIND_BIT } from './pee';
 import { Input } from './input';
@@ -22,10 +23,16 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 // --- renderer, scene, camera -----------------------------------------------------------------------
 
 const canvas = $<HTMLCanvasElement>('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-// PS2 era: a chunky, slightly soft picture. Fewer pixels also keeps phones and tablets smooth.
-let pixelRatio = Math.max(0.7, Math.min(1.1, Math.min(window.devicePixelRatio || 1, 2) * 0.55));
+// How hard to push this device: picked from the hardware, then adjusted while you play.
+const quality = detectQuality();
+console.info(`[piss-gnomes] quality ${quality.tier} (${quality.why})`);
+// with the post pass on, anti-aliasing happens inside it, so the canvas itself does not need MSAA
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !quality.post, powerPreference: 'high-performance' });
+let pixelRatio = quality.ratioMax;
 renderer.setPixelRatio(pixelRatio);
+// a lost graphics context (a phone being busy, or a tab swap) is fixed by starting again
+canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
+canvas.addEventListener('webglcontextrestored', () => location.reload());
 
 const scene = new THREE.Scene();
 const BASE_HI = 1.7;
@@ -42,7 +49,8 @@ scene.add(sun);
 
 const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 160);
 camera.rotation.order = 'YXZ';
-const trip = new Trip(renderer, scene);
+const trip = new Trip(renderer, scene, quality);
+trip.setPlanes(camera.near, camera.far);
 
 function fit() {
   const w = window.innerWidth;
@@ -229,6 +237,8 @@ function startMatch() {
   banter.clear();
   nathaniel.spawn(forest, player.pos);
   idleT = 4;
+  nathSeen = false;
+  requestWakeLock();
   $('feed').innerHTML = '';
   document.body.classList.remove('inmenu');
   $('menu').classList.remove('on');
@@ -383,6 +393,70 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault());
 document.addEventListener('touchmove', (e) => { if ((e.target as HTMLElement).closest('.overlay') === null) e.preventDefault(); }, { passive: false });
 
+// --- screen wake lock (a long match should not let the tablet go to sleep) ----------------------------------------
+
+let wakeLock: { release(): Promise<void> } | null = null;
+function requestWakeLock() {
+  try {
+    const wl = (navigator as unknown as { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock;
+    if (wl && !wakeLock) void wl.request('screen').then((l) => { wakeLock = l; }).catch(() => {});
+  } catch { /* not available */ }
+}
+document.addEventListener('visibilitychange', () => { wakeLock = null; if (!document.hidden && state !== 'menu') requestWakeLock(); });
+
+// --- lens flare: the sun's glare and its ghosts, hidden when a mushroom is in the way ---------------------------
+
+const flareEls = {
+  glow: document.querySelector('#flare .glow') as HTMLElement,
+  streak: document.querySelector('#flare .streak') as HTMLElement,
+  ghosts: [...document.querySelectorAll('#flare .ghost')] as HTMLElement[],
+};
+const SUN_CALM = new THREE.Vector3(0.35, 0.55, -0.75).normalize();
+const SUN_BOGAN = new THREE.Vector3(0.5, 0.1, -0.85).normalize();
+const GHOST_AT = [0.35, 0.62, 1.0, 1.4, 1.85];
+const GHOST_OP = [0.85, 0.7, 0.8, 0.5, 0.6];
+const _fv = new THREE.Vector3();
+let flareVis = 0;
+let flareShown = false;
+
+function updateFlare(dt: number, t: number) {
+  const on = quality.flare && state !== 'menu';
+  let strength = on ? 1 - psy * 0.85 : 0;
+  if (shownMod === 'goth') strength *= 1 - modAmt;
+  else if (shownMod === 'disco') strength *= 1 - modAmt * 0.7;
+  if (strength <= 0.01) {
+    if (flareShown) { flareShown = false; flareEls.glow.style.opacity = flareEls.streak.style.opacity = '0'; flareEls.ghosts.forEach((g) => (g.style.opacity = '0')); }
+    return;
+  }
+  const dir = shownMod === 'bogan' && modAmt > 0.5 ? SUN_BOGAN : SUN_CALM;
+  _fv.copy(camera.position).addScaledVector(dir, 100).project(camera);
+  const inFront = _fv.z < 1;
+  const blocked = !inFront || forest.rayBlocked(camera.position.x, camera.position.y, camera.position.z, dir.x, dir.y, dir.z, 90);
+  flareVis += ((blocked ? 0 : 1) - flareVis) * Math.min(1, dt * 9);
+  const edge = 1 - Math.max(0, Math.min(1, (Math.max(Math.abs(_fv.x), Math.abs(_fv.y)) - 0.85) / 0.6));
+  const v = flareVis * edge * strength;
+  if (v < 0.004) {
+    if (flareShown) { flareShown = false; flareEls.glow.style.opacity = flareEls.streak.style.opacity = '0'; flareEls.ghosts.forEach((g) => (g.style.opacity = '0')); }
+    return;
+  }
+  flareShown = true;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const sx = (_fv.x * 0.5 + 0.5) * w;
+  const sy = (-_fv.y * 0.5 + 0.5) * h;
+  const vx = w / 2 - sx;
+  const vy = h / 2 - sy;
+  const far = Math.min(1, Math.hypot(vx, vy) / (0.75 * Math.hypot(w, h)));
+  flareEls.glow.style.transform = `translate3d(${sx}px, ${sy}px, 0) scale(${1 + 0.06 * Math.sin(t * 2)})`;
+  flareEls.glow.style.opacity = String(v * 0.7);
+  flareEls.streak.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
+  flareEls.streak.style.opacity = String(v * 0.55 * (1 - far * 0.5));
+  flareEls.ghosts.forEach((g, i) => {
+    g.style.transform = `translate3d(${sx + vx * GHOST_AT[i]}px, ${sy + vy * GHOST_AT[i]}px, 0)`;
+    g.style.opacity = String(v * GHOST_OP[i] * (0.35 + 0.65 * far));
+  });
+}
+
 // --- the frame -----------------------------------------------------------------------------------------------------------------
 
 let hintsFaded = false;
@@ -395,6 +469,7 @@ let modAmt = 0;
 let modUntil = 0;
 let modNext = 14;
 let idleT = 4;
+let nathSeen = false;
 let psy = 0;
 let tinted = false;
 const baseSky = new THREE.Color(0xffffff);
@@ -609,8 +684,17 @@ function frame(nowMs: number, lastMs: number) {
       {
         const ev = nathaniel.update(dt, nowMs / 1000, forest, arena.ringR, state === 'play' && player.alive ? player.pos : null);
         if (ev.shout) {
-          NATHANIEL_POS.copy(nathaniel.pos);
-          banter.shout(NATHANIEL_POS, nathaniel.headY + 0.8, 'Nathaniel!', 0xffe066, true);
+          // you say hi, then he answers with the only word he knows
+          if (player.alive) banter.sayLine(player, 'hi:nathaniel');
+          window.setTimeout(() => {
+            NATHANIEL_POS.copy(nathaniel.pos);
+            banter.shout(NATHANIEL_POS, nathaniel.headY + 0.8, 'Nathaniel!', 0xffe066, true);
+          }, 700);
+        }
+        // the first time he is near, point him out
+        if (!nathSeen && state === 'play' && player.alive && nathaniel.cooldown <= 0 && Math.hypot(nathaniel.pos.x - player.pos.x, nathaniel.pos.z - player.pos.z) < 24) {
+          nathSeen = true;
+          banner('THERE IS NATHANIEL!', 'Get close and say hi to him', 3000);
         }
         if (ev.bless) {
           player.wizard = WIZARD_TIME;
@@ -767,29 +851,55 @@ function frame(nowMs: number, lastMs: number) {
   fog.color.copy(trip.horizon(t, fogCol));
   trip.update(t, camera.position, beat);
   trip.render(scene, camera, t, psy * 1.3, beat, 0);
+  updateFlare(dt, t);
 }
 
-// adaptive quality: if a phone struggles, render fewer pixels, then tone the trip down, rather than stutter
-let slow = 0;
+// --- the frame-time governor: keep it smooth on whatever this device is -----------------------------------
+// It watches how long frames really take. If they run slow it renders fewer pixels, then switches the post pass off;
+// when there is plenty of headroom it slowly brings the sharpness back. 120 Hz screens are held to about 60 fps to save heat.
+
+let ema = 16.7;
+let slowMs = 0;
+let fastMs = 0;
+let lastDown = -1e9;
 let last = performance.now();
+let lastDrawn = 0;
+let sample = 0;
+let sampleSum = 0;
+let capTo60 = false;
+
+function setRatio(r: number) {
+  pixelRatio = Math.max(quality.ratioMin, Math.min(quality.ratioMax, r));
+  renderer.setPixelRatio(pixelRatio);
+  fit();
+}
+
 function loop(now: number) {
   requestAnimationFrame(loop);
   const delta = now - last;
+  // the first second tells us the screen's refresh rate
+  if (sample < 90) {
+    sample++;
+    sampleSum += delta;
+    if (sample === 90) capTo60 = sampleSum / 90 < 10;
+  }
+  if (capTo60 && now - lastDrawn < 14.5) return; // skip every other frame on a 120 Hz screen
+  lastDrawn = now;
   frame(now, last);
   last = now;
-  if (delta > 30) slow++; else slow = Math.max(0, slow - 1);
-  if (slow > 45) {
-    slow = 0;
-    if (pixelRatio > 0.6) {
-      pixelRatio = Math.max(0.6, pixelRatio - 0.1);
-      renderer.setPixelRatio(pixelRatio);
-      fit();
-    } else if (trip.level > 0) {
-      trip.level--;
-    }
+  if (delta > 120) return; // a tab switch or a hitch is not the game's fault
+  ema += (delta - ema) * 0.08;
+  if (ema > 21) slowMs += delta; else slowMs = Math.max(0, slowMs - delta);
+  if (slowMs > 1600) {
+    slowMs = 0;
+    lastDown = now;
+    if (pixelRatio > quality.ratioMin + 0.01) setRatio(pixelRatio * 0.85);
+    else if (trip.level > 0) trip.level--;
   }
+  if (ema < 15.5 && pixelRatio < quality.ratioMax - 0.01 && now - lastDown > 12000) fastMs += delta; else fastMs = 0;
+  if (fastMs > 5000) { fastMs = 0; setRatio(pixelRatio * 1.12); }
 }
-requestAnimationFrame((t) => { last = t; loop(t); });
+requestAnimationFrame((t) => { last = t; lastDrawn = t; loop(t); });
 
 // a little handle for testing
-(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, mod: (m: Mod) => { curMod = m; lastMod = m; shownMod = m; arena.mod = m; modUntil = arena.time + 60; sfx.setMood(m); }, get state() { return state; } };
+(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, quality, get pixelRatio() { return pixelRatio; }, mod: (m: Mod) => { curMod = m; lastMod = m; shownMod = m; arena.mod = m; modUntil = arena.time + 60; sfx.setMood(m); }, get state() { return state; } };

@@ -61,6 +61,8 @@ export class Forest {
   readonly spawns: THREE.Vector3[] = [];
 
   private solids: Solid[] = [];
+  /** The mushroom caps (hemispheres), for working out whether the sun is hidden behind one. */
+  private capList: { x: number; z: number; base: number; r: number; h: number }[] = [];
   private readonly cell = 4;
   private readonly nx: number;
   private grid: Solid[][];
@@ -85,7 +87,7 @@ export class Forest {
     const clear = (x: number, z: number, pad = 0) => keepClear.every((k) => Math.hypot(x - k.x, z - k.z) > k.r + pad);
 
     // --- ground -----------------------------------------------------------------------
-    const gtex = makePaintTexture(205, 16);
+    const gtex = makePaintTexture(215, 32, true); // soft, filtered grass rather than chunky pixels
     gtex.repeat.set(90, 90);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), lit({ color: 0x7ee05a, map: gtex }));
     ground.rotation.x = -Math.PI / 2;
@@ -143,6 +145,7 @@ export class Forest {
       const capW = 4.6 * m.s;
       const capH = 1.9 * m.s;
       const base = m.h - 0.15;
+      this.capList.push({ x: m.x, z: m.z, base, r: capW / 2, h: capH });
       put(mCaps, i, m.x, base, m.z, capW, capH * 2, capW, rnd() * 3, m.col); // the hemisphere has radius 0.5, so scaling y by 2h gives height h
       put(mGills, i, m.x, base + 0.02, m.z, capW, 1, capW, 0, 0xffe8c8);
       for (let k = 0; k < SPOTS; k++) {
@@ -299,6 +302,26 @@ export class Forest {
       }
     }
     return hit;
+  }
+
+  /** Does a ray from (ox, oy, oz) along the unit vector d hit a mushroom cap or anything solid within maxT? */
+  rayBlocked(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxT: number): boolean {
+    for (const c of this.capList) {
+      // intersect with the cap's ellipsoid by squashing it into a unit sphere
+      const px = (ox - c.x) / c.r, py = (oy - c.base) / c.h, pz = (oz - c.z) / c.r;
+      const vx = dx / c.r, vy = dy / c.h, vz = dz / c.r;
+      const a = vx * vx + vy * vy + vz * vz;
+      const b = px * vx + py * vy + pz * vz;
+      const disc = b * b - a * (px * px + py * py + pz * pz - 1);
+      if (disc < 0) continue;
+      const sq = Math.sqrt(disc);
+      const t1 = (-b - sq) / a;
+      const t2 = (-b + sq) / a;
+      if (t1 > 0 && t1 < maxT && oy + dy * t1 > c.base) return true;
+      if (t2 > 0 && t2 < maxT && oy + dy * t2 > c.base) return true;
+    }
+    for (let t = 1; t < maxT; t += 1.5) if (this.pointHit(ox + dx * t, oy + dy * t, oz + dz * t)) return true;
+    return false;
   }
 
   /** Is this point of space inside something solid? (pee stops there) */
