@@ -77,7 +77,8 @@ export class Nathaniel {
   private walk = 0;
   private goal = new THREE.Vector3();
   private goalT = 0;
-  private shoutT = 6;
+  /** So that standing against him is one shout, not a stream of them. */
+  private touchT = 0;
   private marker: THREE.Mesh;
   /** For footstep sounds. */
   get stepPhase(): number {
@@ -174,7 +175,7 @@ export class Nathaniel {
     }
     this.goalT = 0;
     this.cooldown = 4;
-    this.shoutT = 5;
+    this.touchT = 0;
     this.pause = 0;
     this.yaw = Math.random() * 6;
   }
@@ -183,7 +184,7 @@ export class Nathaniel {
   update(dt: number, t: number, forest: Forest, ringR: number, target: { x: number; z: number } | null): { shout: boolean; bless: boolean } {
     const out = { shout: false, bless: false };
     this.cooldown = Math.max(0, this.cooldown - dt);
-    this.shoutT -= dt;
+    this.touchT = Math.max(0, this.touchT - dt);
     let speed = 2.4;
     if (this.pause > 0) {
       this.pause -= dt;
@@ -222,18 +223,17 @@ export class Nathaniel {
       forest.collide(this.pos, 0.6);
     }
     if (target) {
+      // he only speaks when you touch him: that is, when you walk right up against him
       const dd = Math.hypot(target.x - this.pos.x, target.z - this.pos.z);
-      if (dd < 6 && this.cooldown <= 0) {
-        this.cooldown = 40;
-        this.pause = 2.4;
-        this.shoutT = 9;
+      if (dd < 2.6 && this.touchT <= 0) {
+        this.touchT = 3;
         out.shout = true;
-        out.bless = true;
+        if (this.cooldown <= 0) {
+          this.cooldown = 40;
+          this.pause = 2.4;
+          out.bless = true;
+        }
       }
-    }
-    if (this.shoutT <= 0) {
-      this.shoutT = 6 + Math.random() * 4;
-      if (target && Math.hypot(target.x - this.pos.x, target.z - this.pos.z) < 34) out.shout = true;
     }
 
     // animation: a lanky, slightly clumsy lope

@@ -85,16 +85,16 @@ export class Forest {
     const clear = (x: number, z: number, pad = 0) => keepClear.every((k) => Math.hypot(x - k.x, z - k.z) > k.r + pad);
 
     // --- ground -----------------------------------------------------------------------
-    const gtex = makePaintTexture(150);
+    const gtex = makePaintTexture(205, 16);
     gtex.repeat.set(90, 90);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), lit({ color: 0x2f6e55, map: gtex }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), lit({ color: 0x7ee05a, map: gtex }));
     ground.rotation.x = -Math.PI / 2;
     this.group.add(ground);
 
     const patchCount = 40;
-    const patches = instanced(new THREE.CylinderGeometry(0.5, 0.5, 0.03, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false }), patchCount);
+    const patches = instanced(new THREE.CylinderGeometry(0.5, 0.5, 0.03, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }), patchCount);
     for (let i = 0; i < patchCount; i++) {
-      put(patches, i, between(-HALF + 4, HALF - 4), 0.03, between(-HALF + 4, HALF - 4), between(2.5, 8), 1, between(2.5, 8), rnd() * 3, pick([0x4af0c0, 0x9a6aff, 0x4ab0ff, 0xff7ad0]));
+      put(patches, i, between(-HALF + 4, HALF - 4), 0.03, between(-HALF + 4, HALF - 4), between(2.5, 8), 1, between(2.5, 8), rnd() * 3, pick([0xffffff, 0xffe066, 0xff9ad0, 0x9ae0ff]));
     }
     this.group.add(patches);
 
@@ -108,7 +108,7 @@ export class Forest {
         const off = HALF + 1.6 + between(0, 1.6);
         const [x, z] = side === 0 ? [t, -off] : side === 1 ? [t, off] : side === 2 ? [-off, t] : [off, t];
         const h = between(5, 9);
-        put(thorns, ti++, x, h / 2, z, between(1.6, 2.6), h, between(1.6, 2.6), rnd() * 3, pick([0x2a1740, 0x3a1f55, 0x4a2a60, 0x5a1f4a]));
+        put(thorns, ti++, x, h / 2, z, between(1.6, 2.6), h, between(1.6, 2.6), rnd() * 3, pick([0xff7ab8, 0xffd34a, 0x6ad4ff, 0xa0e060, 0xb08aff]));
       }
     }
     this.group.add(thorns);
@@ -128,14 +128,14 @@ export class Forest {
         h: big ? between(6.5, 8.5) : between(3.6, 5.4),
         w: big ? between(1.3, 1.7) : between(0.7, 1),
         s: big ? between(1.35, 1.6) : between(0.75, 1.05),
-        col: pick([0x2f8f7a, 0x3a6fb0, 0x7a4fb0, 0x2f9a5a, 0x9a4fa0, 0x3aa6a0]),
+        col: pick([0xff7ab8, 0xffd34a, 0x6ad4ff, 0x8ae04a, 0xb08aff, 0xff9a4a]),
       });
       placed.push({ x, z });
     }
     const trunks = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 6), lit({ color: 0xffffff }), trees.length);
     const tiers = [0, 1].map(() => instanced(new THREE.IcosahedronGeometry(0.62, 0), lit({ color: 0xffffff, flatShading: true }), trees.length));
     trees.forEach((t, i) => {
-      put(trunks, i, t.x, t.h / 2, t.z, t.w, t.h, t.w, 0, pick([0x5a3a52, 0x4a3448, 0x6a4658]));
+      put(trunks, i, t.x, t.h / 2, t.z, t.w, t.h, t.w, 0, pick([0xc08a5a, 0xb07848, 0xd09a6a]));
       const canopy: Canopy = { x: t.x, z: t.z, fade: 0, parts: [] };
       for (let l = 0; l < 2; l++) {
         const width = 4.2 * t.s * (1 - l * 0.34);
@@ -155,7 +155,7 @@ export class Forest {
       const x = between(-HALF + 5, HALF - 5);
       const z = between(-HALF + 5, HALF - 5);
       if (!clear(x, z, 1.5) || !spaced(x, z, 5.5)) continue;
-      giants.push({ x, z, s: between(0.9, 1.3), col: pick([0xc03a5a, 0x7a4fd0, 0x2a7ad0, 0xd08a2a]) });
+      giants.push({ x, z, s: between(0.9, 1.3), col: pick([0xff4a6a, 0xffb02a, 0x6a8aff, 0xb06aff]) });
       placed.push({ x, z });
     }
     const gStem = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 8), lit({ color: 0xf0e4d2 }), giants.length);
@@ -185,7 +185,7 @@ export class Forest {
     }
     const rocks = instanced(new THREE.IcosahedronGeometry(0.6, 0), lit({ color: 0xffffff, flatShading: true }), rockList.length);
     rockList.forEach((r, i) => {
-      put(rocks, i, r.x, r.h / 2.4, r.z, r.w, r.h, r.w, rnd() * 3, pick([0x7a7f8c, 0x6a6f7c, 0x8a8f9c]));
+      put(rocks, i, r.x, r.h / 2.4, r.z, r.w, r.h, r.w, rnd() * 3, pick([0xc4ccdc, 0xaab6cc, 0xd4dcec]));
       this.addCircle(r.x, r.z, r.w * 0.5, r.h * 0.9);
     });
     this.group.add(rocks);
@@ -201,7 +201,7 @@ export class Forest {
     }
     const logs = instanced(new SoftBox(1, 1, 1), lit({ color: 0xffffff }), logList.length);
     logList.forEach((l, i) => {
-      put(logs, i, l.x, 0.5, l.z, l.w, 1, l.d, 0, pick([0x5a3a30, 0x6a4a3a]));
+      put(logs, i, l.x, 0.5, l.z, l.w, 1, l.d, 0, pick([0xc9824a, 0xd89a5a]));
       this.addRect(l.x - l.w / 2, l.z - l.d / 2, l.x + l.w / 2, l.z + l.d / 2, 1);
     });
     this.group.add(logs);
@@ -215,12 +215,12 @@ export class Forest {
       const z = between(-HALF + 2, HALF - 2);
       const s = between(0.7, 1.5);
       put(stems, i, x, 0.3 * s, z, 0.25 * s, 0.6 * s, 0.25 * s);
-      put(caps, i, x, 0.7 * s, z, 1.0 * s, 0.4 * s, 1.0 * s, rnd() * 3, pick([0xff66cc, 0x66ffee, 0xffee66, 0xa87aff, 0x7aff8a]));
+      put(caps, i, x, 0.7 * s, z, 1.0 * s, 0.4 * s, 1.0 * s, rnd() * 3, pick([0xff66b0, 0x66e6ff, 0xffe45a, 0xb08aff, 0x7aff7a]));
     }
     this.group.add(stems, caps);
 
     // --- the pond with lily pads (flat decor) -----------------------------------------------
-    const pond = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.06, 28), new THREE.MeshBasicMaterial({ color: 0x3a8adf, transparent: true, opacity: 0.8 }));
+    const pond = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.06, 28), new THREE.MeshBasicMaterial({ color: 0x4ab8ff, transparent: true, opacity: 0.85 }));
     pond.position.set(-21, 0.05, 19);
     this.group.add(pond);
     const lilies = instanced(new SoftBox(1, 0.05, 1), new THREE.MeshBasicMaterial({ color: 0x4acf6a }), 10);
@@ -233,13 +233,13 @@ export class Forest {
       const x = Math.cos(a) * 5;
       const z = Math.sin(a) * 5;
       const h = between(3, 4.4);
-      const stone = new THREE.Mesh(new SoftBox(1.3, h, 1.3), lit({ color: 0x8f8fa0, flatShading: true }));
+      const stone = new THREE.Mesh(new SoftBox(1.3, h, 1.3), lit({ color: 0xd4d8ee, flatShading: true }));
       stone.position.set(x, h / 2, z);
       stone.rotation.y = a;
       this.group.add(stone);
       this.addCircle(x, z, 0.75, h);
     }
-    const altar = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.1, 0.5, 8), lit({ color: 0x9a9aac, flatShading: true }));
+    const altar = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.1, 0.5, 8), lit({ color: 0xe8ecfa, flatShading: true }));
     altar.position.set(0, 0.25, 0);
     this.group.add(altar);
 

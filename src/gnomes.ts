@@ -78,7 +78,7 @@ function makeLite(shirt: number, hat: number) {
   return { root, legL: model.legL, legR: model.legR, mat };
 }
 
-const SHIRTS = [0x2f5fb0, 0x2a8f4a, 0x3a9ad0, 0xd8a02a, 0x8a5a2a, 0x3d8a3d];
+const SHIRTS = [0x3a8aff, 0x2ad06a, 0x3ad0ff, 0xffb02a, 0xff7a3a, 0xa070ff];
 
 function angleDiff(a: number, b: number): number {
   let d = b - a;
@@ -188,6 +188,7 @@ export class Gnome {
   private mx = 0;
   private mz = 0;
   private botPitch = 0;
+  private wasPee = false;
 
   constructor(
     scene: THREE.Scene,
@@ -397,6 +398,9 @@ export class Gnome {
       this.hasAim = true;
       const clear = !this.blocked(A, tgt.pos.x, tgt.pos.z);
       this.wantPee = d < RANGE * 0.97 && !scared && clear && !this.locked && this.bladder > 2 && Math.abs(angleDiff(this.yaw, ang)) < 0.35;
+      // shout a taunt as the stream starts
+      if (this.wantPee && !this.wasPee && Math.random() < 0.4) Gnome.onSay?.(this, 'taunt');
+      this.wasPee = this.wantPee;
     } else {
       // nobody around: stroll between random spots
       this.wanderT -= dt;

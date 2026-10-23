@@ -1,6 +1,6 @@
 # Piss Gnomes: Last Gnome Standing (mobile/tablet)
 
-A first-person, psychedelic spin-off of Piss Gnomes made for phones and tablets. Ten gnomes, one small enchanted forest,
+A first-person spin-off of Piss Gnomes, styled like a PS2 Katamari game (candy colours, chunky low-poly, pastel UI) made for phones and tablets. Ten gnomes, one small enchanted forest,
 pee is the only weapon, and a closing mist forces a finish. Last gnome standing wins. Swirling sky, warping colours that
 get wilder as you take damage, and a generative trance soundtrack.
 
@@ -43,3 +43,6 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **3D sound:** the other gnomes' streams, hits, deaths, footsteps, Nathaniel's big boots and the bug farts are all placed in
   space around the camera (HRTF panning with distance fade), so headphones tell you where things are. Speech voices cannot be
   panned by the browser, so those just fade with distance.
+- **Looks:** a bright, chunky, Katamari-on-PS2 world (candy trees, pastel sky and clouds, fat rounded UI, soft low-res picture). It only
+  goes psychedelic when you are badly hurt. Nathaniel only speaks when you touch him, and the bugs are blocky voxel beetles.
+- **Taunts:** bots yell things like "Taste the rainbow!" and "Don't slip!" as they open fire, and when they win a fight.

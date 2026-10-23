@@ -23,15 +23,20 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 
 const canvas = $<HTMLCanvasElement>('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
+// PS2 era: a chunky, slightly soft picture. Fewer pixels also keeps phones and tablets smooth.
+let pixelRatio = Math.max(0.7, Math.min(1.1, Math.min(window.devicePixelRatio || 1, 2) * 0.55));
 renderer.setPixelRatio(pixelRatio);
 
 const scene = new THREE.Scene();
-const fog = new THREE.Fog(0x140a2e, 16, 78);
+const BASE_HI = 1.7;
+const BASE_SI = 0.9;
+const FOG_NEAR = 24;
+const FOG_FAR = 100;
+const fog = new THREE.Fog(0xdbeeff, FOG_NEAR, FOG_FAR);
 scene.fog = fog;
-const hemi = new THREE.HemisphereLight(0xc8b8ff, 0x2a5a48, 1.25);
+const hemi = new THREE.HemisphereLight(0xffffff, 0xb0e890, BASE_HI);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff2d0, 1.5);
+const sun = new THREE.DirectionalLight(0xfff4d8, BASE_SI);
 sun.position.set(-0.4, 1, 0.5);
 scene.add(sun);
 
@@ -129,21 +134,21 @@ function drawMinimap() {
   const k = S / (2 * HALF + 6);
   const px = (x: number) => (x + HALF + 3) * k;
   mapCtx.clearRect(0, 0, S, S);
-  mapCtx.fillStyle = 'rgba(10,30,24,.85)';
+  mapCtx.fillStyle = 'rgba(130,225,100,.95)';
   mapCtx.fillRect(0, 0, S, S);
-  mapCtx.strokeStyle = 'rgba(25,227,255,.5)';
+  mapCtx.strokeStyle = 'rgba(255,255,255,.9)';
   mapCtx.strokeRect(px(-HALF), px(-HALF), 2 * HALF * k, 2 * HALF * k);
   // safe circle
   mapCtx.save();
   mapCtx.beginPath();
   mapCtx.rect(0, 0, S, S);
   mapCtx.arc(px(0), px(0), arena.ringR * k, 0, Math.PI * 2, true);
-  mapCtx.fillStyle = 'rgba(255,43,214,.35)';
+  mapCtx.fillStyle = 'rgba(255,90,165,.45)';
   mapCtx.fill('evenodd');
   mapCtx.restore();
   mapCtx.beginPath();
   mapCtx.arc(px(0), px(0), arena.ringR * k, 0, Math.PI * 2);
-  mapCtx.strokeStyle = '#ff7af0';
+  mapCtx.strokeStyle = '#ff3a8a';
   mapCtx.lineWidth = 1.5;
   mapCtx.stroke();
   mapCtx.lineWidth = 1;
@@ -358,9 +363,9 @@ let modNext = 14;
 let idleT = 4;
 let psy = 0;
 let tinted = false;
-const baseSky = new THREE.Color(0xc8b8ff);
-const baseGround = new THREE.Color(0x2a5a48);
-const baseSun = new THREE.Color(0xfff2d0);
+const baseSky = new THREE.Color(0xffffff);
+const baseGround = new THREE.Color(0xb0e890);
+const baseSun = new THREE.Color(0xfff4d8);
 const tmpA = new THREE.Color();
 const tmpB = new THREE.Color();
 const landing = { x: 0, z: 0 };
@@ -671,17 +676,17 @@ function frame(nowMs: number, lastMs: number) {
   trip.mode = MOD_INDEX[shownMod];
   trip.modeAmt = modAmt;
   if (modAmt > 0.001) {
-    let sky = baseSky, ground = baseGround, sunC = baseSun, hi = 1.25, si = 1.5, near = 16, far = 78;
-    if (shownMod === 'disco') { sky = tmpA.setHSL((t * 0.15) % 1, 0.8, 0.6); sunC = tmpB.setHSL((t * 0.3 + 0.5) % 1, 0.9, 0.6); hi = 1.6; si = 1.8; }
-    else if (shownMod === 'goth') { sky = tmpA.setHex(0x6a5a9a); ground = tmpB.setHex(0x120a1a); sunC = sunC.clone().setHex(0x9a7aff); hi = 0.85; si = 0.6; near = 6; far = 50; }
-    else { sky = tmpA.setHex(0xffc890); ground = tmpB.setHex(0x6a4a20); sunC = sunC.clone().setHex(0xffa050); hi = 1.35; si = 1.9; }
+    let sky = baseSky, ground = baseGround, sunC = baseSun, hi = BASE_HI, si = BASE_SI, near = FOG_NEAR, far = FOG_FAR;
+    if (shownMod === 'disco') { sky = tmpA.setHSL((t * 0.15) % 1, 0.8, 0.6); sunC = tmpB.setHSL((t * 0.3 + 0.5) % 1, 0.9, 0.6); hi = 1.9; si = 1.2; }
+    else if (shownMod === 'goth') { sky = tmpA.setHex(0x6a5a9a); ground = tmpB.setHex(0x120a1a); sunC = sunC.clone().setHex(0x9a7aff); hi = 0.6; si = 0.4; near = 6; far = 50; }
+    else { sky = tmpA.setHex(0xffc890); ground = tmpB.setHex(0x6a4a20); sunC = sunC.clone().setHex(0xffa050); hi = 1.8; si = 1.3; }
     hemi.color.copy(baseSky).lerp(sky, modAmt);
     hemi.groundColor.copy(baseGround).lerp(ground, modAmt);
-    hemi.intensity = 1.25 + (hi - 1.25) * modAmt;
+    hemi.intensity = BASE_HI + (hi - BASE_HI) * modAmt;
     sun.color.copy(baseSun).lerp(sunC, modAmt);
-    sun.intensity = 1.5 + (si - 1.5) * modAmt;
-    fog.near = 16 + (near - 16) * modAmt;
-    fog.far = 78 + (far - 78) * modAmt;
+    sun.intensity = BASE_SI + (si - BASE_SI) * modAmt;
+    fog.near = FOG_NEAR + (near - FOG_NEAR) * modAmt;
+    fog.far = FOG_FAR + (far - FOG_FAR) * modAmt;
     for (const g of gnomes) {
       if (shownMod === 'disco') { tmpA.setHSL((t * 0.2 + g.id * 0.1) % 1, 0.9, 0.6); g.setTint([1 + (tmpA.r * 1.4 - 1) * modAmt, 1 + (tmpA.g * 1.4 - 1) * modAmt, 1 + (tmpA.b * 1.4 - 1) * modAmt]); }
       else if (shownMod === 'goth') { const k = 1 - 0.78 * modAmt; g.setTint([k, k, k * 1.1]); }
@@ -692,11 +697,11 @@ function frame(nowMs: number, lastMs: number) {
     tinted = false;
     hemi.color.copy(baseSky);
     hemi.groundColor.copy(baseGround);
-    hemi.intensity = 1.25;
+    hemi.intensity = BASE_HI;
     sun.color.copy(baseSun);
-    sun.intensity = 1.5;
-    fog.near = 16;
-    fog.far = 78;
+    sun.intensity = BASE_SI;
+    fog.near = FOG_NEAR;
+    fog.far = FOG_FAR;
     for (const g of gnomes) g.setTint(null);
   }
   // the world is a normal night forest until you are hurt; low health is what makes it psychedelic
@@ -725,8 +730,8 @@ function loop(now: number) {
   if (delta > 30) slow++; else slow = Math.max(0, slow - 1);
   if (slow > 45) {
     slow = 0;
-    if (pixelRatio > 1) {
-      pixelRatio = Math.max(1, pixelRatio - 0.25);
+    if (pixelRatio > 0.6) {
+      pixelRatio = Math.max(0.6, pixelRatio - 0.1);
       renderer.setPixelRatio(pixelRatio);
       fit();
     } else if (trip.level > 0) {

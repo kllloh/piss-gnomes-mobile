@@ -57,62 +57,60 @@ interface Puff {
   mat: THREE.MeshBasicMaterial;
 }
 
-const gemGeo = new THREE.OctahedronGeometry(0.5, 0);
+const gemGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
 const ringGeo = new THREE.RingGeometry(0.7, 0.95, 20).rotateX(-Math.PI / 2);
-const puffGeo = new THREE.SphereGeometry(0.5, 8, 6);
+const puffGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
 
+/** A blocky voxel beetle: stacked cubes for the shell, cube eyes, stick legs. Front is -z. */
 function makeBug(shell: number): { root: THREE.Group; legs: THREE.Group[]; tail: THREE.Group } {
   const root = new THREE.Group();
   const body = new THREE.Group();
-  const lam = (c: number) => new THREE.MeshLambertMaterial({ color: c });
-  // the fat shell, with a stripe and spots
-  const shellMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), lam(shell));
-  shellMesh.scale.set(1, 0.75, 1.35);
-  shellMesh.position.y = 0.55;
-  body.add(shellMesh);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 1.3), lam(0x111111));
-  stripe.position.set(0, 0.94, 0.05);
-  body.add(stripe);
-  for (let i = 0; i < 4; i++) {
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 4), lam(0xf5f0d0));
-    dot.position.set(i % 2 ? 0.27 : -0.27, 0.8, -0.2 + i * 0.22 - (i % 2) * 0.1);
-    body.add(dot);
+  const mats = new Map<number, THREE.MeshLambertMaterial>();
+  const mat = (c: number) => {
+    let m = mats.get(c);
+    if (!m) { m = new THREE.MeshLambertMaterial({ color: c }); mats.set(c, m); }
+    return m;
+  };
+  const box = (parent: THREE.Object3D, w: number, h: number, d: number, x: number, y: number, z: number, c: number) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
+    m.position.set(x, y, z);
+    parent.add(m);
+    return m;
+  };
+  const dark = 0x2a1a3a;
+  // a stepped, blocky shell
+  box(body, 1.5, 0.45, 2.1, 0, 0.62, 0.1, shell);
+  box(body, 1.2, 0.45, 1.8, 0, 1.07, 0.1, shell);
+  box(body, 0.8, 0.3, 1.2, 0, 1.45, 0.1, shell);
+  // a dark stripe down the middle and some cream spots
+  box(body, 0.14, 0.08, 1.9, 0, 1.32, 0.1, dark);
+  for (let i = 0; i < 6; i++) box(body, 0.2, 0.2, 0.2, i % 2 ? 0.46 : -0.46, 1.1 + (i % 3) * 0.05, -0.45 + i * 0.3, 0xfff3c0);
+  // chunky head with square eyes and antennae
+  box(body, 0.7, 0.6, 0.6, 0, 0.7, -1.2, dark);
+  for (const sx of [-0.2, 0.2]) {
+    box(body, 0.24, 0.24, 0.1, sx, 0.88, -1.52, 0xffffff);
+    box(body, 0.1, 0.1, 0.1, sx, 0.88, -1.58, 0x000000);
+    box(body, 0.08, 0.5, 0.08, sx * 1.6, 1.25, -1.35, dark);
+    box(body, 0.2, 0.14, 0.2, sx * 1.6, 1.54, -1.4, 0xff5aa5);
   }
-  // head, big goggly eyes, little antennae (front is -z)
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), lam(0x1c1c1c));
-  head.position.set(0, 0.5, -0.78);
-  body.add(head);
-  for (const sx of [-0.15, 0.15]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    eye.position.set(sx, 0.62, -1.02);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-    pupil.position.set(sx, 0.62, -1.11);
-    const ant = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.55, 0.04), lam(0x1c1c1c));
-    ant.position.set(sx * 1.4, 0.95, -0.95);
-    ant.rotation.set(-0.5, 0, sx * 2);
-    body.add(eye, pupil, ant);
-  }
-  // six legs
+  // six cube-footed legs
   const legs: THREE.Group[] = [];
   for (let i = 0; i < 6; i++) {
     const leg = new THREE.Group();
     const side = i % 2 ? 1 : -1;
-    leg.position.set(side * 0.4, 0.42, -0.45 + Math.floor(i / 2) * 0.45);
-    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.06), lam(0x1c1c1c));
-    seg.position.set(side * 0.25, -0.1, 0);
-    seg.rotation.z = side * -0.5;
-    leg.add(seg);
+    leg.position.set(side * 0.72, 0.5, -0.6 + Math.floor(i / 2) * 0.7);
+    box(leg, 0.5, 0.12, 0.12, side * 0.22, -0.05, 0, dark);
+    box(leg, 0.14, 0.45, 0.14, side * 0.5, -0.28, 0, dark);
     root.add(leg);
     legs.push(leg);
   }
   // the business end, which lifts when it is time
   const tail = new THREE.Group();
-  tail.position.set(0, 0.5, 0.95);
-  const rear = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), lam(0x3a2a1a));
-  tail.add(rear);
+  tail.position.set(0, 0.55, 1.25);
+  box(tail, 0.45, 0.45, 0.45, 0, 0, 0, 0x6a4a2a);
   body.add(tail);
   root.add(body);
-  root.scale.setScalar(1.5);
+  root.scale.setScalar(1.2);
   return { root, legs, tail };
 }
 
@@ -276,6 +274,8 @@ export class Bugs {
       const f = 1 - p.life / p.max;
       p.mesh.position.addScaledVector(p.vel, dt);
       p.mesh.scale.setScalar(0.5 + f * 2.4);
+      p.mesh.rotation.x += dt * 2;
+      p.mesh.rotation.y += dt * 3;
       p.mat.opacity = 0.55 * (1 - f);
     }
 
@@ -284,6 +284,7 @@ export class Bugs {
       const bo = this.bonuses[i];
       bo.life -= dt;
       bo.gem.rotation.y = t * 3;
+      bo.gem.rotation.x = 0.6;
       bo.gem.position.y = 1.5 + Math.sin(t * 3 + bo.x) * 0.2;
       bo.group.visible = bo.life > 3 || Math.floor(bo.life * 6) % 2 === 0; // blinks when about to go
       let taken = false;

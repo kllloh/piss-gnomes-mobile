@@ -45,9 +45,14 @@ void main() {
   float star = step(0.985, h) * (0.5 + 0.5 * sin(time * 3.0 + h * 50.0));
   col += star * smoothstep(0.05, 0.4, d.y);
   // the calm night sky you start with: the swirl only comes in as you get hurt
-  vec3 calm = mix(vec3(0.16, 0.12, 0.34), vec3(0.02, 0.02, 0.1), smoothstep(-0.1, 0.8, d.y));
-  calm += vec3(0.95, 0.93, 0.8) * smoothstep(0.14, 0.12, md);
-  calm += star * 0.8 * smoothstep(0.05, 0.4, d.y);
+  vec3 calm = mix(vec3(0.86, 0.93, 1.0), vec3(0.28, 0.66, 1.0), smoothstep(-0.05, 0.8, d.y));
+  vec3 sn = normalize(vec3(0.35, 0.55, -0.75));
+  float sdd = acos(clamp(dot(d, sn), -1.0, 1.0));
+  calm += vec3(1.0, 0.95, 0.55) * smoothstep(0.13, 0.11, sdd) + vec3(1.0, 0.92, 0.6) * smoothstep(0.55, 0.1, sdd) * 0.22;
+  // fat low-poly clouds drifting by
+  float cl = 0.5 + 0.5 * sin(d.x * 5.0 + time * 0.04 + sin(d.z * 4.0) * 1.6) * sin(d.z * 6.0 - time * 0.03 + sin(d.x * 3.0)) + d.y * 0.5;
+  cl = smoothstep(0.62, 0.8, cl) * smoothstep(0.05, 0.3, d.y) * smoothstep(0.98, 0.6, d.y);
+  calm = mix(calm, vec3(1.0), cl * 0.9);
   col = mix(calm, col, psy);
   if (modeAmt > 0.001) {
     vec3 mc = col;
@@ -240,7 +245,7 @@ export class Trip {
   /** Match the fog to the horizon colour of the sky so distance fades into the swirl. */
   horizon(t: number, out: THREE.Color): THREE.Color {
     palette(t * 0.03, out).multiplyScalar(0.22);
-    out.lerp(this.tmpC.setRGB(0.1, 0.07, 0.22), 1 - this.psy); // calm: a plain dark violet
+    out.lerp(this.tmpC.setRGB(0.86, 0.93, 1.0), 1 - this.psy); // calm: the pale blue horizon of a sunny sky
     if (this.modeAmt > 0.001) {
       const m = this.mode < 1.5 ? palette(t * 0.12, this.tmpC).multiplyScalar(0.45) : this.mode < 2.5 ? this.tmpC.setRGB(0.04, 0.0, 0.03) : this.tmpC.setRGB(0.55, 0.28, 0.1);
       out.lerp(m, this.modeAmt);
