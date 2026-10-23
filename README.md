@@ -78,7 +78,7 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   3-second grace period; the other 49 gnomes are spread around the island's spawn points (never on top of you). There is no plane any more.
 - **A bigger island (1.5x):** about 2.25 times the area (270 x 270), roughly 800 big mushrooms, 60 potions and 30 beetles. The mist starts after
   50 s and takes 5.5 minutes to close.
-- **Tenchu: Stealth Assassins look:** the game is now a moonlit, foggy, 1998-console world. It renders at about 360 lines and is scaled up with hard
+- **Tenchu: Stealth Assassins look:** the game is now a moonlit, foggy, 1998-console world. It renders at about 450 lines and is scaled up with hard
   pixels, vertex positions snap to a coarse grid so edges shimmer, colour is quantised to 15-bit with an ordered dither, and textures are nearest-filtered.
   The island is dark moss, mud and grey rock under a night sky with a pale moon; mushrooms have dull earthy caps; the buildings are
   weathered wood with black roofs, and warm stone lanterns glow around the places. The interface is ink, parchment and blood red (rice-paper speech bubbles,

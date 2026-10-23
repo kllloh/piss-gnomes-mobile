@@ -28,7 +28,7 @@ const canvas = $<HTMLCanvasElement>('game');
 // PlayStation-style vertex snapping: positions jump to a coarse screen grid, so edges shimmer and wobble a little
 THREE.ShaderChunk.project_vertex = THREE.ShaderChunk.project_vertex.replace(
   'gl_Position = projectionMatrix * mvPosition;',
-  'gl_Position = projectionMatrix * mvPosition;\n\tgl_Position.xy = floor(gl_Position.xy / gl_Position.w * vec2(170.0, 128.0) + 0.5) / vec2(170.0, 128.0) * gl_Position.w;',
+  'gl_Position = projectionMatrix * mvPosition;\n\tgl_Position.xy = floor(gl_Position.xy / gl_Position.w * vec2(212.0, 160.0) + 0.5) / vec2(212.0, 160.0) * gl_Position.w;',
 );
 
 // How hard to push this device: picked from the hardware, then adjusted while you play.
@@ -36,8 +36,8 @@ const quality = detectQuality();
 console.info(`[piss-gnomes] quality ${quality.tier} (${quality.why})`);
 // with the post pass on, anti-aliasing happens inside it, so the canvas itself does not need MSAA
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !quality.post, powerPreference: 'high-performance' });
-// the picture is rendered small on purpose (about 360 lines tall) and scaled up with hard pixels, like a 1998 console
-const RETRO_LINES = 360;
+// the picture is rendered small on purpose (about 450 lines tall) and scaled up with hard pixels, like a 1998 console
+const RETRO_LINES = 450;
 let ratioScale = 1;
 const retroRatio = () => Math.max(0.3, Math.min(window.devicePixelRatio || 1, RETRO_LINES / window.innerHeight));
 let pixelRatio = retroRatio();
