@@ -171,6 +171,8 @@ export class Gnome {
   speedT = 0;
   bounceT = 0;
   freeT = 0;
+  /** White Monster: seconds of an endless bladder and a double stream. */
+  energyT = 0;
   private vy = 0;
   /** A moment of grace after appearing. */
   private landShield = 0;
@@ -288,7 +290,7 @@ export class Gnome {
     this.acidMul = 1;
     this.wizard = 0;
     this.landShield = 3;
-    this.speedT = this.bounceT = this.freeT = 0;
+    this.speedT = this.bounceT = this.freeT = this.energyT = 0;
     this.vy = 0;
     this.burn = this.acid = this.chill = this.frozen = this.immune = 0;
     this.sinceHurt = 99;
@@ -477,7 +479,7 @@ export class Gnome {
       // nobody around: stroll between random spots
       this.wanderT -= dt;
       const bonus = A.bugs.nearestBonus(this.pos.x, this.pos.z, 22);
-      const pot = this.mask !== 7 ? A.potions.nearest(this.pos.x, this.pos.z, 26, this.mask) : null;
+      const pot = this.mask !== 7 ? A.potions.nearest(this.pos.x, this.pos.z, 26, this.mask | (this.energyT > 0 ? 8 : 0)) : null;
       let goal: { x: number; z: number } | null = bonus ?? pot;
       if (!goal && this.hunting) {
         // with fifty gnomes about, go and find one
@@ -554,6 +556,7 @@ export class Gnome {
     if (this.wizard > 0) { this.wizard -= dt; this.burn = this.acid = this.chill = this.frozen = 0; }
     this.speedT = Math.max(0, this.speedT - dt);
     this.freeT = Math.max(0, this.freeT - dt);
+    this.energyT = Math.max(0, this.energyT - dt);
     // bouncing: hop whenever you land, for as long as it lasts
     this.ground = heightAt(this.pos.x, this.pos.z);
     this.wading = waterDepth(this.pos.x, this.pos.z);
@@ -632,13 +635,13 @@ export class Gnome {
     // the stream
     if (this.wantPee && !this.locked && this.bladder > 0 && !frozen) {
       this.peeing = true;
-      this.bladder -= BLADDER_DRAIN * (A.mod === 'bogan' ? 0.35 : 1) * (this.freeT > 0 ? 0 : 1) * dt;
+      this.bladder -= BLADDER_DRAIN * (A.mod === 'bogan' ? 0.35 : 1) * (this.freeT > 0 || this.energyT > 0 ? 0 : 1) * dt;
       const sy = this.isPlayer ? this.assistYaw ?? this.yaw : this.yaw;
       const sp = this.isPlayer ? this.assistPitch ?? this.pitch : this.botPitch;
       const cp = Math.cos(sp);
       const fx = Math.sin(sy);
       const fz = Math.cos(sy);
-      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.mask, A.mod === 'disco' ? 1.3 : 1, A.mod === 'bogan' ? 2.2 : 1);
+      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.mask, (A.mod === 'disco' ? 1.3 : 1) * (this.energyT > 0 ? 2 : 1), (A.mod === 'bogan' ? 2.2 : 1) * (this.energyT > 0 ? 1.4 : 1));
       if (this.bladder <= 0) { this.bladder = 0; this.locked = true; this.peeing = false; Gnome.onSay?.(this, 'dry'); }
     } else {
       this.peeing = false;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HALF, type Forest } from './forest';
 import { heightAt } from './map';
+import { iconTexture } from './icons';
 import { MAX_HP, type Gnome } from './gnomes';
 
 export type BonusKind = 'speed' | 'health' | 'bounce' | 'gulp';
@@ -262,7 +263,10 @@ export class Bugs {
     ring.position.y = 0.08;
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 9, 8, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide, fog: false }));
     beam.position.y = 4.5;
-    group.add(gem, ring, beam);
+    const icon = new THREE.Sprite(new THREE.SpriteMaterial({ map: iconTexture(kind), transparent: true, depthWrite: false }));
+    icon.scale.set(1.9, 1.9, 1);
+    icon.position.y = 3.7;
+    group.add(gem, ring, beam, icon);
     group.position.set(x, heightAt(x, z), z);
     this.scene.add(group);
     this.bonuses.push({ x, z, kind, life: BONUS_LIFE, group, gem, mat });

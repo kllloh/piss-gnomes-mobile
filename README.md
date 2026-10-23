@@ -93,3 +93,6 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   speech bubbles and kill feed (`> ...`), a glitching banner, a faint scan-line sheet, and tactical-grid maps with neon labels and a targeting reticle for your spawn.
 - **Auto-pee:** your gnome starts peeing by itself when an enemy is within range, roughly in front of you and not hidden behind a hill or a mushroom, and the stream drifts onto the target while it does.
   The **AUTO** button beside the sound button switches it off (it then says MAN) and the choice is remembered.
+- **White Monster:** a rare white energy drink can (about one pickup in six, with a green slash design of its own) gives **an endless bladder and a double stream for 20 seconds**. Bots go for them too.
+- **An icon for every power-up:** flame (Chili Wee), snowflake (Ice Wee), flask (Acid Pee), lightning bolt (Speed), medical cross (Health), spring (Bounce), cup (Big Gulp), wizard hat (Wizard Mode) and the white can (White Monster).
+  The icons show in the pickup banners, on the active-effect pills, on the how-to chips and floating over every pickup in the world.

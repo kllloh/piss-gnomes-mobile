@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Forest, HALF } from './forest';
 import { Gnome, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
 import { Potions } from './potions';
+import { iconImg, type IconKind } from './icons';
 import { Banter, modTagline } from './talk';
 import { Nathaniel } from './nathaniel';
 import { Bugs, BONUS_INFO, type BonusKind } from './bugs';
@@ -537,6 +538,9 @@ function updateLocation() {
   }
 }
 
+// icons in the how-to chips and headings
+document.querySelectorAll<HTMLElement>('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', iconImg(el.dataset.icon as IconKind)));
+
 // --- the how-to-play slider on the start screen ------------------------------------------------------------
 
 (() => {
@@ -832,27 +836,28 @@ function updateHud() {
   if (player.mask && player.alive) {
     const info = MIX[player.mask];
     const parts: string[] = [];
-    for (const k of ['chili', 'ice', 'acid'] as const) if (player.potions[k] > 0) parts.push(`${k.toUpperCase()} ${Math.ceil(player.potions[k])}s`);
+    for (const k of ['chili', 'ice', 'acid'] as const) if (player.potions[k] > 0) parts.push(`${iconImg(k)}${k.toUpperCase()} ${Math.ceil(player.potions[k])}s`);
     pot.style.display = 'block';
     pot.style.borderColor = '#' + info.color.toString(16).padStart(6, '0');
-    pot.textContent = parts.join(' + ') + (parts.length > 1 ? ` = ${info.name.toUpperCase()}` : '');
+    pot.innerHTML = parts.join(' + ') + (parts.length > 1 ? ` = ${info.name.toUpperCase()}` : '');
   } else pot.style.display = 'none';
   const wz = $('wizard');
   if (player.wizard > 0 && player.alive) {
     wz.style.display = 'block';
-    wz.textContent = `WIZARD MODE ${Math.ceil(player.wizard)}s`;
+    wz.innerHTML = `${iconImg('wizard')}WIZARD MODE ${Math.ceil(player.wizard)}s`;
     $('wizfx').style.opacity = String(0.55 + 0.25 * Math.sin(arena.time * 6));
   } else {
     wz.style.display = 'none';
     $('wizfx').style.opacity = '0';
   }
   const buffs: string[] = [];
-  if (player.speedT > 0) buffs.push(`SPEED ${Math.ceil(player.speedT)}s`);
-  if (player.bounceT > 0) buffs.push(`BOUNCE ${Math.ceil(player.bounceT)}s`);
-  if (player.freeT > 0) buffs.push(`BIG GULP ${Math.ceil(player.freeT)}s`);
+  if (player.energyT > 0) buffs.push(`${iconImg('energy')}WHITE MONSTER ${Math.ceil(player.energyT)}s`);
+  if (player.speedT > 0) buffs.push(`${iconImg('speed')}SPEED ${Math.ceil(player.speedT)}s`);
+  if (player.bounceT > 0) buffs.push(`${iconImg('bounce')}BOUNCE ${Math.ceil(player.bounceT)}s`);
+  if (player.freeT > 0) buffs.push(`${iconImg('gulp')}BIG GULP ${Math.ceil(player.freeT)}s`);
   const bf = $('buffs');
   bf.style.display = buffs.length && player.alive ? 'block' : 'none';
-  if (buffs.length) bf.textContent = buffs.join('  \u00b7  ');
+  if (buffs.length) bf.innerHTML = buffs.join('  \u00b7  ');
   const chip = $('modchip');
   if (curMod && state === 'play') {
     chip.style.display = 'block';
@@ -921,19 +926,29 @@ function frame(nowMs: number, lastMs: number) {
         }
       });
       potions.update(dt, nowMs / 1000, gnomes, (g, kind) => {
+        if (kind === 'energy') {
+          banter.sayLine(g, 'energy:bonus');
+          if (!g.isPlayer) sfx.grabAt(g.pos);
+          else {
+            sfx.pop();
+            banner(iconImg('energy') + ' WHITE MONSTER!', 'infinite bladder and a double stream for 20 seconds', 2800);
+          }
+          return;
+        }
         const mixed = (g.mask & (g.mask - 1)) !== 0; // two or more potions at once
         banter.sayLine(g, mixed ? 'mix:potion' : `${kind}:potion`);
         if (!g.isPlayer) sfx.grabAt(g.pos);
         if (g.isPlayer) {
           sfx.pop();
-          if (mixed) banner('MIX! ' + MIX[g.mask].name.toUpperCase(), MIX[g.mask].blurb, 2600);
-          else banner(PEE[kind].name.toUpperCase() + '!', PEE[kind].blurb, 1700);
+          const icons = (['chili', 'ice', 'acid'] as const).filter((k) => g.potions[k] > 0).map((k) => iconImg(k)).join('');
+          if (mixed) banner(icons + ' MIX! ' + MIX[g.mask].name.toUpperCase(), MIX[g.mask].blurb, 2600);
+          else banner(iconImg(kind as IconKind) + ' ' + PEE[kind].name.toUpperCase() + '!', PEE[kind].blurb, 1700);
         }
       });
       bugs.update(dt, nowMs / 1000, arena.ringR, gnomes, state === 'play', (g, kind: BonusKind) => {
         if (g.isPlayer) {
           sfx.pop();
-          banner(BONUS_INFO[kind].name + '!', BONUS_INFO[kind].blurb, 1700);
+          banner(iconImg(kind) + ' ' + BONUS_INFO[kind].name + '!', BONUS_INFO[kind].blurb, 1700);
         } else sfx.grabAt(g.pos);
         banter.sayLine(g, `${kind}:bonus`);
       });
@@ -954,7 +969,7 @@ function frame(nowMs: number, lastMs: number) {
         }
         if (ev.bless) {
           player.wizard = WIZARD_TIME;
-          banner('WIZARD MODE!', 'Nathaniel blessed you. You cannot be hurt!', 3200);
+          banner(iconImg('wizard') + ' WIZARD MODE!', 'Nathaniel blessed you. You cannot be hurt!', 3200);
           sfx.win();
           feedLine('<b>Nathaniel</b> gave you Wizard Mode');
         }

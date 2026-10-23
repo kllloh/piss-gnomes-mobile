@@ -58,6 +58,7 @@ export const LINES: Record<string, string[]> = {
   'taunt:disco': ['Taste the DISCO rainbow!', 'Boogie in the puddle!', "Don't slip on the dance floor!", 'Shake it, wet it!'],
   'taunt:goth': ['Taste the void.', "Don't slip into the abyss.", 'Everything is damp. Everything.', 'Embrace the puddle.'],
   'taunt:bogan': ['Taste the tinnie, mate!', "Don't slip on me thongs!", 'Chuck a wee, ya drongo!', 'Taste the rainbow, ya galah!'],
+  'energy:bonus': ['WHITE MONSTER! Glug glug glug!', 'I can see through time!', 'INFINITE PEE! DOUBLE PEE!', 'My bladder has no bottom!', 'ENERGY! I AM ENERGY!', 'Is my heart supposed to do that?'],
   'speed:bonus': ['ZOOOOOM!', 'Gotta go fast!', 'My legs have opinions!', 'Nyoooom!', 'I AM THE WIND! DAMP WIND!'],
   'health:bonus': ['Ahhh, bug-fart vitamins!', 'I feel brand new! And smelly!', 'Healed by a bottom! Science!', 'Aaah, fresh!'],
   'bounce:bonus': ['BOING BOING BOING!', 'I am a gnome-ball!', 'Wheeeeee! BOUNCE!', 'My knees are springs!', 'Hop hop HOP!'],

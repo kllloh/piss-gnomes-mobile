@@ -195,6 +195,11 @@
 
   #btnAuto { font-family: var(--head); font-size: 10px; letter-spacing: .08em; color: var(--m); text-shadow: 0 0 6px #ff2bd6; background: var(--brk-m), rgba(20,6,22,.9); border-color: rgba(255,43,214,.5); }
   #btnAuto.off { color: var(--dim); text-shadow: none; opacity: .6; background: rgba(8,6,20,.9); border-color: rgba(127,144,184,.4); }
+
+  .ico { width: 1.35em; height: 1.35em; vertical-align: -.32em; margin-right: .35em; }
+  #banner .ico { width: 1em; height: 1em; vertical-align: -.12em; margin-right: .15em; }
+  .chip .ico { width: 1.5em; height: 1.5em; vertical-align: -.4em; margin: 0 .3em 0 -.4em; }
+  .card h3 .ico { width: 1.4em; height: 1.4em; }
 </style>
 </head>
 <body class="inmenu">
@@ -264,16 +269,17 @@
         <section class="slide">
           <div class="card"><h3>4 &middot; POTIONS</h3>
             <ul><li>Walk into a glowing bottle for 25 seconds of:</li>
-            <li><span class="chip" style="background:#ff5a14">CHILI</span> sets them on fire</li>
-            <li><span class="chip" style="background:#3ab8e8">ICE</span> slows, then freezes them</li>
-            <li><span class="chip" style="background:#4ab81a">ACID</span> melts them and they take extra damage</li>
+            <li><span class="chip" data-icon="chili" style="background:#c8420a">CHILI</span> sets them on fire</li>
+            <li><span class="chip" data-icon="ice" style="background:#2a88aa">ICE</span> slows, then freezes them</li>
+            <li><span class="chip" data-icon="acid" style="background:#3a8a14">ACID</span> melts them and they take extra damage</li>
+            <li><span class="chip" data-icon="energy" style="background:#1f8a4a">WHITE MONSTER</span> a rare white can: <b>infinite bladder and a double stream for 20 s</b></li>
             <li><b>Grab different ones to mix them:</b> Thermal Shock, Napalm, Cryo-Acid, or all three for the Rainbow Cocktail (it makes them dizzy).</li></ul></div>
         </section>
         <section class="slide">
           <div class="card"><h3>5 &middot; FARTING BEETLES</h3>
             <ul><li>Little blocky beetles wander about and fart out a bonus. Grab it before it vanishes (16 s):</li>
-            <li><span class="chip" style="background:#19b8e0">SPEED</span> <span class="chip" style="background:#ff4a6a">HEALTH</span> <span class="chip" style="background:#e02bb0">BOUNCE</span> <span class="chip" style="background:#e0a800">BIG GULP</span></li></ul></div>
-          <div class="card"><h3>NATHANIEL</h3>
+            <li><span class="chip" data-icon="speed" style="background:#128aa8">SPEED</span> <span class="chip" data-icon="health" style="background:#b82a48">HEALTH</span> <span class="chip" data-icon="bounce" style="background:#a81f84">BOUNCE</span> <span class="chip" data-icon="gulp" style="background:#a67c00">BIG GULP</span></li></ul></div>
+          <div class="card"><h3 data-icon="wizard">NATHANIEL</h3>
             <ul><li>The tall metalhead in glasses (a <b>gold diamond</b> on the map). <b>Say hi:</b> walk up close to him and he gives you <b>Wizard Mode</b>: 20 seconds where nothing can hurt you.</li></ul></div>
         </section>
         <section class="slide">
