@@ -311,6 +311,40 @@ function pause(on: boolean) {
   if (on) { sfx.hiss(false); sfx.hissOthers([]); }
 }
 
+// --- the how-to-play slider on the start screen ------------------------------------------------------------
+
+(() => {
+  const slider = $('slider');
+  const dots = $('dots');
+  const slides = slider.querySelectorAll('.slide');
+  const prev = $<HTMLButtonElement>('slPrev');
+  const next = $<HTMLButtonElement>('slNext');
+  const go = (i: number) => slider.scrollTo({ left: Math.max(0, Math.min(slides.length - 1, i)) * slider.clientWidth, behavior: 'smooth' });
+  const idx = () => Math.round(slider.scrollLeft / Math.max(1, slider.clientWidth));
+  slides.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.setAttribute('aria-label', `Page ${i + 1}`);
+    d.addEventListener('click', () => go(i));
+    dots.appendChild(d);
+  });
+  const sync = () => {
+    const i = idx();
+    dots.querySelectorAll('button').forEach((d, k) => d.classList.toggle('on', k === i));
+    prev.disabled = i <= 0;
+    next.disabled = i >= slides.length - 1;
+  };
+  slider.addEventListener('scroll', sync, { passive: true });
+  prev.addEventListener('click', () => go(idx() - 1));
+  next.addEventListener('click', () => go(idx() + 1));
+  window.addEventListener('keydown', (e) => {
+    if (state !== 'menu') return;
+    if (e.code === 'ArrowRight') go(idx() + 1);
+    if (e.code === 'ArrowLeft') go(idx() - 1);
+  });
+  window.addEventListener('resize', () => slider.scrollTo({ left: idx() * slider.clientWidth }));
+  sync();
+})();
+
 // --- buttons -------------------------------------------------------------------------------------------------------------
 
 function goFullscreen() {

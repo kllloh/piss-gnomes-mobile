@@ -53,4 +53,5 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
   alone). Mixes change the stream: **Thermal Shock** (chili + ice: burning-and-chilled victims take double), **Napalm**
   (chili + acid: longer burn that jumps to anyone close), **Cryo-Acid** (ice + acid: frozen victims take 60% more and the
   acid bites twice as hard) and the **Rainbow Cocktail** (all three: rainbow pee that leaves victims dizzy).
+- **Start screen:** a swipeable How To Play slider (arrows, dots and swipe).
 - **Speech bubbles** fade with distance, and the beetles are smaller.
