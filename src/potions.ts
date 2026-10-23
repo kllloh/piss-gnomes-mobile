@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HALF, type Forest } from './forest';
 import { PEE, POTION_KINDS, KIND_BIT, type PeeKind } from './pee';
 import type { Gnome } from './gnomes';
 
-const COUNT = 12;
+const COUNT = 30;
 const RESPAWN = 25;
 const GRAB = 1.5;
 export const POTION_TIME = 25;
@@ -15,45 +16,53 @@ interface Item {
   alive: boolean;
   wait: number;
   group: THREE.Group;
-  body: THREE.Mesh;
-  neck: THREE.Mesh;
+  bottle: THREE.Mesh;
   beam: THREE.Mesh;
 }
 
-const bodyGeo = new THREE.CylinderGeometry(0.3, 0.42, 0.8, 8);
-const neckGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.35, 6);
-const beamGeo = new THREE.CylinderGeometry(0.45, 0.45, 14, 8, 1, true);
+const beamGeo = new THREE.CylinderGeometry(0.45, 0.45, 14, 6, 1, true);
+
+/** One merged, vertex-coloured bottle per kind: a potion costs one draw call, plus its light beam. */
+function bottleGeometry(color: number): THREE.BufferGeometry {
+  const c = new THREE.Color(color);
+  const cork = new THREE.Color(0xf0e0b0);
+  const part = (g: THREE.BufferGeometry, y: number, col: THREE.Color) => {
+    g.translate(0, y, 0);
+    const n = g.attributes.position.count;
+    const arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { arr[i * 3] = col.r; arr[i * 3 + 1] = col.g; arr[i * 3 + 2] = col.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    return g;
+  };
+  return mergeGeometries([
+    part(new THREE.CylinderGeometry(0.3, 0.42, 0.8, 8), 0.9, c),
+    part(new THREE.CylinderGeometry(0.14, 0.14, 0.35, 6), 1.5, c),
+    part(new THREE.BoxGeometry(0.22, 0.2, 0.22), 1.78, cork),
+  ], false)!;
+}
 
 /** Glowing bottles lying about the forest. Walk into one and your pee changes for a while. */
 export class Potions {
   private items: Item[] = [];
-  private mats = new Map<PeeKind, THREE.MeshBasicMaterial>();
+  private geos = new Map<PeeKind, THREE.BufferGeometry>();
+  private mat = new THREE.MeshBasicMaterial({ vertexColors: true });
 
   constructor(scene: THREE.Scene, forest: Forest) {
-    const mat = (k: PeeKind) => {
-      let m = this.mats.get(k);
-      if (!m) { m = new THREE.MeshBasicMaterial({ color: PEE[k].color }); this.mats.set(k, m); }
-      return m;
-    };
+    for (const k of POTION_KINDS) this.geos.set(k, bottleGeometry(PEE[k].color));
     const taken: { x: number; z: number }[] = [];
-    for (let attempt = 0; attempt < 400 && this.items.length < COUNT; attempt++) {
-      const p = forest.randomFree(HALF - 5);
-      if (taken.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 11) || Math.hypot(p.x, p.z) > 36) continue;
+    for (let attempt = 0; attempt < 1500 && this.items.length < COUNT; attempt++) {
+      const p = forest.randomFree(HALF - 6);
+      if (taken.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 18)) continue;
       taken.push({ x: p.x, z: p.z });
       const kind = POTION_KINDS[this.items.length % POTION_KINDS.length];
       const group = new THREE.Group();
-      const body = new THREE.Mesh(bodyGeo, mat(kind));
-      body.position.y = 0.9;
-      const neck = new THREE.Mesh(neckGeo, mat(kind));
-      neck.position.y = 1.5;
-      const cork = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.22), new THREE.MeshBasicMaterial({ color: 0xf0e0b0 }));
-      cork.position.y = 1.78;
+      const bottle = new THREE.Mesh(this.geos.get(kind)!, this.mat);
       const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: PEE[kind].color, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, fog: false }));
       beam.position.y = 7;
-      group.add(body, neck, cork, beam);
+      group.add(bottle, beam);
       group.position.set(p.x, 0, p.z);
       scene.add(group);
-      this.items.push({ x: p.x, z: p.z, kind, alive: true, wait: 0, group, body, neck, beam });
+      this.items.push({ x: p.x, z: p.z, kind, alive: true, wait: 0, group, bottle, beam });
     }
   }
 
@@ -80,13 +89,13 @@ export class Potions {
         if (it.wait <= 0) {
           it.alive = true;
           it.kind = POTION_KINDS[Math.floor(Math.random() * POTION_KINDS.length)];
-          it.body.material = it.neck.material = this.mats.get(it.kind)!;
+          it.bottle.geometry = this.geos.get(it.kind)!;
           (it.beam.material as THREE.MeshBasicMaterial).color.setHex(PEE[it.kind].color);
           it.group.visible = true;
         }
         continue;
       }
-      it.body.rotation.y = t * 1.6;
+      it.bottle.rotation.y = t * 1.6;
       it.group.position.y = Math.sin(t * 2 + it.x) * 0.12;
       for (const g of gnomes) {
         if (!g.alive || g.potions[it.kind as 'chili'] > 0) continue; // a kind you already hold is left for a mix

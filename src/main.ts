@@ -11,10 +11,11 @@ import { PeeSystem, RANGE, PEE, MIX, KIND_BIT } from './pee';
 import { Input } from './input';
 import { Sfx } from './audio';
 
-const MIST_WAIT = 20; // seconds before the mist starts to close
-const MIST_TIME = 150; // seconds it takes to close
-const MIST_START = 58;
-const MIST_END = 6;
+const TOTAL = 50; // gnomes in a match
+const MIST_WAIT = 45; // seconds before the mist starts to close
+const MIST_TIME = 300; // seconds it takes to close
+const MIST_START = HALF * 1.5;
+const MIST_END = 8;
 const COUNTDOWN = 3.4;
 const WIZARD_TIME = 20;
 
@@ -38,7 +39,7 @@ const scene = new THREE.Scene();
 const BASE_HI = 1.7;
 const BASE_SI = 0.9;
 const FOG_NEAR = 24;
-const FOG_FAR = 100;
+const FOG_FAR = quality.drawDist;
 const fog = new THREE.Fog(0xdbeeff, FOG_NEAR, FOG_FAR);
 scene.fog = fog;
 const hemi = new THREE.HemisphereLight(0xffffff, 0xb0e890, BASE_HI);
@@ -80,18 +81,20 @@ const mistLine = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 5, 96).rotateX(
 mistLine.position.y = 0.1;
 scene.add(mistWall, mistLine);
 
-const NAMES = ['Barnaby', 'Sir Wetsalot', 'Gorse', 'Mildred', 'Pudding', 'Old Tumble', 'Nettle', 'Captain Drip', 'Fungus', 'Bramble', 'Turnip', 'Lord Puddle'];
-const HATS = [0xff3b3b, 0xffa21a, 0xffe23a, 0x4ade50, 0x19e3ff, 0x4a7bff, 0xb04aff, 0xff2bd6, 0xe8e8e8, 0xa0683a];
+const FIRST = ['Barnaby', 'Gorse', 'Mildred', 'Pudding', 'Nettle', 'Fungus', 'Bramble', 'Turnip', 'Hazel', 'Mortimer', 'Biscuit', 'Wilbur', 'Agnes', 'Thistle', 'Cornelius', 'Dandelion', 'Humphrey', 'Marigold', 'Percival', 'Quince', 'Rufus', 'Sorrel', 'Tobias', 'Ulysses', 'Violet', 'Wombat', 'Yarrow', 'Zebedee', 'Clover', 'Ferdinand'];
+const TITLED = ['Sir Wetsalot', 'Captain Drip', 'Lord Puddle', 'Old Tumble', 'Dame Splash', 'The Dribbler', 'Moist Mike', 'Baron Bladder', 'Lady Leak', 'Gnomeo', 'Wee Willie', 'Damp Dave', 'Splashy Pete', 'Puddle Pete', 'Count Drizzle', 'Tinkle Tim', 'Gushing Gus', 'Madam Mizzle', 'Trickle Tom', 'Flushing Fred'];
+const NAMES = [...FIRST, ...TITLED];
+const HATS = [0xff3b3b, 0xffa21a, 0xffe23a, 0x4ade50, 0x19e3ff, 0x4a7bff, 0xb04aff, 0xff2bd6, 0xe8e8e8, 0xa0683a, 0x2ad0a0, 0xff7a5a];
 
-const player = new Gnome(scene, 'You', HATS[0], true);
+const player = new Gnome(scene, 'You', HATS[0], true, 0);
 const bots: Gnome[] = [];
 const botNames = NAMES.slice().sort(() => Math.random() - 0.5);
-for (let i = 1; i < 10; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i], false));
+for (let i = 1; i < TOTAL; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i % HATS.length], false, i));
 const gnomes: Gnome[] = [player, ...bots];
 
 const potions = new Potions(scene, forest);
 const bugs = new Bugs(scene, forest);
-const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true, potions, bugs, mod: null };
+const arena: Arena = { forest, pee, gnomes, ringR: MIST_START, time: 0, camera, frozen: true, potions, bugs, drawDist: quality.drawDist + 10, mod: null };
 fit();
 
 const banter = new Banter($('bubbles'), $('chatter'), player);
@@ -176,7 +179,7 @@ function drawMinimap() {
   for (const g of gnomes) {
     if (!g.alive) continue;
     mapCtx.beginPath();
-    mapCtx.arc(px(g.pos.x), px(g.pos.z), g.isPlayer ? 4.5 : 3.2, 0, Math.PI * 2);
+    mapCtx.arc(px(g.pos.x), px(g.pos.z), g.isPlayer ? 4.5 : 2.3, 0, Math.PI * 2);
     mapCtx.fillStyle = hex(g.isPlayer ? 0xffffff : g.color);
     mapCtx.fill();
     if (g.isPlayer) {
@@ -229,7 +232,7 @@ function startMatch() {
   paused = false;
   curMod = null;
   modAmt = 0;
-  modNext = 14 + Math.random() * 6;
+  modNext = 30 + Math.random() * 10;
   arena.mod = null;
   sfx.setMood('none');
   potions.reset();
@@ -244,7 +247,7 @@ function startMatch() {
   $('menu').classList.remove('on');
   $('over').classList.remove('on');
   $('pause').classList.remove('on');
-  $('aliveN').textContent = '10';
+  $('aliveN').textContent = String(TOTAL);
   banner('LAST GNOME STANDING', '', 0);
   input.takeLook();
   input.release();
@@ -298,7 +301,7 @@ function endMatch() {
   if (won) { playerPlace = 1; sfx.win(); }
   $('overTitle').textContent = won ? 'LAST GNOME STANDING!' : playerPlace ? 'ELIMINATED' : 'DRAW';
   $('overSub').textContent = won ? 'You peed on the whole forest and won.' : winner ? `${winner.name} is the last gnome standing.` : 'Nobody is left. The mist wins.';
-  $('stats').innerHTML = `Placed <b>${ordinal(playerPlace || 10)}</b> of 10<br>Gnomes soaked: <b>${player.kills}</b><br>Time: <b>${fmt(matchTime)}</b>`;
+  $('stats').innerHTML = `Placed <b>${ordinal(playerPlace || TOTAL)}</b> of ${TOTAL}<br>Gnomes soaked: <b>${player.kills}</b><br>Time: <b>${fmt(matchTime)}</b>`;
   $('btnWatch').style.display = 'none';
   banner(won ? 'VICTORY!' : `${winner ? winner.name : 'Nobody'} wins`, '', 0);
   setTimeout(() => { if (state === 'over') $('over').classList.add('on'); }, won ? 900 : 600);
@@ -307,7 +310,7 @@ function endMatch() {
 function showEliminated() {
   $('overTitle').textContent = 'ELIMINATED';
   $('overSub').textContent = 'You were soaked.';
-  $('stats').innerHTML = `Placed <b>${ordinal(playerPlace)}</b> of 10<br>Gnomes soaked: <b>${player.kills}</b><br>Time: <b>${fmt(matchTime)}</b>`;
+  $('stats').innerHTML = `Placed <b>${ordinal(playerPlace)}</b> of ${TOTAL}<br>Gnomes soaked: <b>${player.kills}</b><br>Time: <b>${fmt(matchTime)}</b>`;
   $('btnWatch').style.display = '';
   $('over').classList.add('on');
   input.release();
@@ -461,7 +464,8 @@ function updateFlare(dt: number, t: number) {
 
 let hintsFaded = false;
 // silly modes
-const MOD_INDEX: Record<Mod, number> = { disco: 1, goth: 2, bogan: 3 };
+const MOD_INDEX: Record<Mod, number> = { disco: 1, goth: 2, bogan: 3, upside: 4, moon: 5, slippery: 6 };
+const MOD_LABEL: Record<Mod, string> = { disco: 'DISCO', goth: 'GOTH', bogan: 'BOGAN', upside: 'UPSIDE DOWN', moon: 'MOON', slippery: 'SLIPPERY' };
 let curMod: Mod | null = null;
 let shownMod: Mod = 'disco';
 let lastMod: Mod | null = null;
@@ -520,8 +524,10 @@ scene.add(landMark);
 function playerControls(dt: number) {
   input.poll();
   const [ly, lp] = input.takeLook();
-  player.yaw -= ly; // dragging right turns right
-  player.pitch = Math.max(-0.9, Math.min(1.25, player.pitch + lp));
+  // upside down mode flips the picture, so left/right and up/down swap on screen
+  const inv = shownMod === 'upside' && modAmt > 0.5 ? -1 : 1;
+  player.yaw -= ly * inv; // dragging right turns right
+  player.pitch = Math.max(-0.9, Math.min(1.25, player.pitch + lp * inv));
   if (player.dizzy > 0) {
     // Rainbow Cocktail: the world will not hold still
     player.yaw += Math.sin(arena.time * 4.3) * 1.2 * dt;
@@ -530,11 +536,11 @@ function playerControls(dt: number) {
   // the stick is relative to where you are facing
   const fx = Math.sin(player.yaw);
   const fz = Math.cos(player.yaw);
-  player.moveX = fx * input.moveF - fz * input.moveX;
-  player.moveZ = fz * input.moveF + fx * input.moveX;
+  player.moveX = fx * input.moveF - fz * input.moveX * inv;
+  player.moveZ = fz * input.moveF + fx * input.moveX * inv;
   player.hasAim = false;
   player.wantPee = input.fire;
-  if (input.takeJump() && state === 'play') player.jump();
+  if (input.takeJump() && state === 'play') player.jump(arena.mod === 'moon' ? 10.5 : 8);
 
   // a thumb is not a mouse: when peeing, drift the stream towards anyone nearly under the crosshair
   player.assistYaw = player.assistPitch = null;
@@ -602,7 +608,7 @@ function updateHud() {
   const chip = $('modchip');
   if (curMod && state === 'play') {
     chip.style.display = 'block';
-    chip.textContent = `${curMod.toUpperCase()} MODE ${fmt(Math.max(0, modUntil - arena.time))}`;
+    chip.textContent = `${MOD_LABEL[curMod]} MODE ${fmt(Math.max(0, modUntil - arena.time))}`;
   } else chip.style.display = 'none';
   const mist = $('mist');
   if (!mistStarted) {
@@ -653,6 +659,7 @@ function frame(nowMs: number, lastMs: number) {
         }
       }
 
+      pee.gravity = arena.mod === 'moon' ? 3.2 : 9;
       for (const g of gnomes) g.update(dt, arena);
       pee.update(dt, forest, gnomes, (victim, shooter, mask) => {
         if (god && victim.isPlayer) return;
@@ -718,17 +725,17 @@ function frame(nowMs: number, lastMs: number) {
           curMod = null;
           arena.mod = null;
           sfx.setMood('none');
-          modNext = arena.time + 16 + Math.random() * 12;
+          modNext = arena.time + 25 + Math.random() * 20;
         } else if (!curMod && arena.time >= modNext) {
-          const pool = (['disco', 'goth', 'bogan'] as Mod[]).filter((m) => m !== lastMod);
+          const pool = (['disco', 'goth', 'bogan', 'upside', 'moon', 'slippery'] as Mod[]).filter((m) => m !== lastMod);
           curMod = pool[Math.floor(Math.random() * pool.length)];
           lastMod = curMod;
           shownMod = curMod;
           arena.mod = curMod;
-          modUntil = arena.time + 32 + Math.random() * 10;
+          modUntil = arena.time + 45 + Math.random() * 15;
           sfx.setMood(curMod);
-          banner(curMod.toUpperCase() + ' MODE!', modTagline(curMod), 3200);
-          feedLine(`<b>${curMod.toUpperCase()} MODE</b>`);
+          banner(MOD_LABEL[curMod] + ' MODE!', modTagline(curMod), 3200);
+          feedLine(`<b>${MOD_LABEL[curMod]} MODE</b>`);
           sfx.alarm();
           for (const b of bots.filter((x) => x.alive).slice(0, 2)) banter.say(b, 'idle', curMod, true);
         }
@@ -782,6 +789,7 @@ function frame(nowMs: number, lastMs: number) {
     camera.rotation.z = Math.sin(t * 0.9) * 0.05 * modAmt;
     camera.rotation.y += Math.sin(t * 0.6) * 0.03 * modAmt;
   } else camera.rotation.z = 0;
+  if (shownMod === 'upside') camera.rotation.z += Math.PI * modAmt; // the whole world turns over
   if (focus === player && player.dizzy > 0) camera.rotation.z += Math.sin(t * 5) * 0.14;
   camera.getWorldDirection(fwd);
   sfx.setListener(camera.position, fwd.x, fwd.y, fwd.z);
@@ -813,7 +821,10 @@ function frame(nowMs: number, lastMs: number) {
     let sky = baseSky, ground = baseGround, sunC = baseSun, hi = BASE_HI, si = BASE_SI, near = FOG_NEAR, far = FOG_FAR;
     if (shownMod === 'disco') { sky = tmpA.setHSL((t * 0.15) % 1, 0.8, 0.6); sunC = tmpB.setHSL((t * 0.3 + 0.5) % 1, 0.9, 0.6); hi = 1.9; si = 1.2; }
     else if (shownMod === 'goth') { sky = tmpA.setHex(0x6a5a9a); ground = tmpB.setHex(0x120a1a); sunC = sunC.clone().setHex(0x9a7aff); hi = 0.6; si = 0.4; near = 6; far = 50; }
-    else { sky = tmpA.setHex(0xffc890); ground = tmpB.setHex(0x6a4a20); sunC = sunC.clone().setHex(0xffa050); hi = 1.8; si = 1.3; }
+    else if (shownMod === 'bogan') { sky = tmpA.setHex(0xffc890); ground = tmpB.setHex(0x6a4a20); sunC = sunC.clone().setHex(0xffa050); hi = 1.8; si = 1.3; }
+    else if (shownMod === 'upside') { sky = tmpA.setHex(0xc090ff); ground = tmpB.setHex(0x7a3a60); sunC = sunC.clone().setHex(0xff9a6a); hi = 1.5; si = 0.8; near = 12; far = 75; }
+    else if (shownMod === 'moon') { sky = tmpA.setHex(0xb0c0ff); ground = tmpB.setHex(0x505868); sunC = sunC.clone().setHex(0xffffff); hi = 0.9; si = 1.6; near = 60; far = FOG_FAR + 70; }
+    else { sky = tmpA.setHex(0xd8f4ff); ground = tmpB.setHex(0x9ad0ff); sunC = sunC.clone().setHex(0xe8f8ff); hi = 1.95; si = 1.0; near = 30; far = FOG_FAR; }
     hemi.color.copy(baseSky).lerp(sky, modAmt);
     hemi.groundColor.copy(baseGround).lerp(ground, modAmt);
     hemi.intensity = BASE_HI + (hi - BASE_HI) * modAmt;
@@ -824,7 +835,10 @@ function frame(nowMs: number, lastMs: number) {
     for (const g of gnomes) {
       if (shownMod === 'disco') { tmpA.setHSL((t * 0.2 + g.id * 0.1) % 1, 0.9, 0.6); g.setTint([1 + (tmpA.r * 1.4 - 1) * modAmt, 1 + (tmpA.g * 1.4 - 1) * modAmt, 1 + (tmpA.b * 1.4 - 1) * modAmt]); }
       else if (shownMod === 'goth') { const k = 1 - 0.78 * modAmt; g.setTint([k, k, k * 1.1]); }
-      else g.setTint([1 + 0.2 * modAmt, 1 - 0.05 * modAmt, 1 - 0.35 * modAmt]);
+      else if (shownMod === 'bogan') g.setTint([1 + 0.2 * modAmt, 1 - 0.05 * modAmt, 1 - 0.35 * modAmt]);
+      else if (shownMod === 'upside') g.setTint([1 + 0.1 * modAmt, 1 - 0.15 * modAmt, 1 + 0.25 * modAmt]);
+      else if (shownMod === 'slippery') g.setTint([1 - 0.1 * modAmt, 1 + 0.05 * modAmt, 1 + 0.25 * modAmt]);
+      else g.setTint(null);
     }
     tinted = true;
   } else if (tinted) {

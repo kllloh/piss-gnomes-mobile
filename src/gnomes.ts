@@ -30,11 +30,13 @@ export interface Arena {
   frozen: boolean;
   potions: Potions;
   bugs: Bugs;
+  /** Beyond this distance from the camera gnomes are not drawn. */
+  drawDist: number;
   /** The silly mode that is on right now, if any. */
   mod: Mod | null;
 }
 
-export type Mod = 'disco' | 'goth' | 'bogan';
+export type Mod = 'disco' | 'goth' | 'bogan' | 'upside' | 'moon' | 'slippery';
 export type Say = 'spot' | 'hit' | 'kill' | 'death' | 'burn' | 'freeze' | 'melt' | 'lowhp' | 'dry' | 'idle' | 'taunt';
 
 // --- cheap models: the gnome baked into three meshes (two legs and a body) ------------------------
@@ -62,20 +64,43 @@ function bake(root: THREE.Object3D, group: THREE.Object3D, exclude?: Set<THREE.O
   return geos.length ? mergeGeometries(geos, false) : null;
 }
 
+interface LiteGeo {
+  body: THREE.BufferGeometry | null;
+  legL: THREE.BufferGeometry | null;
+  legR: THREE.BufferGeometry | null;
+  legLPos: THREE.Vector3;
+  legRPos: THREE.Vector3;
+}
+const liteCache = new Map<string, LiteGeo>();
+
 function makeLite(shirt: number, hat: number) {
-  const model = createGnome(shirt, hat);
-  const root = model.root;
-  const legs: THREE.Group[] = [model.legL, model.legR];
-  const legGeos = legs.map((g) => bake(root, g));
-  const bodyGeo = bake(root, root, new Set<THREE.Object3D>(legs));
+  const key = `${shirt}-${hat}`;
+  let g = liteCache.get(key);
+  if (!g) {
+    const model = createGnome(shirt, hat);
+    const root = model.root;
+    const legs: THREE.Group[] = [model.legL, model.legR];
+    g = {
+      legL: bake(root, model.legL),
+      legR: bake(root, model.legR),
+      body: bake(root, root, new Set<THREE.Object3D>(legs)),
+      legLPos: model.legL.position.clone(),
+      legRPos: model.legR.position.clone(),
+    };
+    liteCache.set(key, g);
+  }
   const mat = lit({ vertexColors: true });
-  for (const c of root.children.slice()) if (!legs.includes(c as THREE.Group)) root.remove(c);
-  legs.forEach((g, i) => {
-    g.clear();
-    if (legGeos[i]) g.add(new THREE.Mesh(legGeos[i]!, mat));
-  });
-  if (bodyGeo) root.add(new THREE.Mesh(bodyGeo, mat));
-  return { root, legL: model.legL, legR: model.legR, mat };
+  const root = new THREE.Group();
+  const legL = new THREE.Group();
+  const legR = new THREE.Group();
+  legL.position.copy(g.legLPos);
+  legR.position.copy(g.legRPos);
+  if (g.legL) legL.add(new THREE.Mesh(g.legL, mat));
+  if (g.legR) legR.add(new THREE.Mesh(g.legR, mat));
+  root.add(legL, legR);
+  if (g.body) root.add(new THREE.Mesh(g.body, mat));
+  root.scale.setScalar(0.8);
+  return { root, legL, legR, mat };
 }
 
 const SHIRTS = [0x3a8aff, 0x2ad06a, 0x3ad0ff, 0xffb02a, 0xff7a3a, 0xa070ff];
@@ -92,13 +117,16 @@ let nextId = 1;
 const ringGeo = new THREE.RingGeometry(0.95, 1.22, 24).rotateX(-Math.PI / 2);
 const barGeo = new THREE.PlaneGeometry(1, 1);
 const chevGeo = new THREE.ConeGeometry(0.34, 0.6, 4).rotateX(Math.PI); // points down
+const shadowGeo = new THREE.CircleGeometry(0.75, 14).rotateX(-Math.PI / 2);
+const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false });
+const barBgMat = new THREE.MeshBasicMaterial({ color: 0x120a22, transparent: true, opacity: 0.8, depthTest: false });
 
 /** Elevation that lands a stream on a target `dy` higher and `d` away (the low arc). */
-export function aimPitch(d: number, dy: number): number {
+export function aimPitch(d: number, dy: number, g = GRAVITY): number {
   const v2 = DROP_SPEED * DROP_SPEED;
-  const disc = v2 * v2 - GRAVITY * (GRAVITY * d * d + 2 * dy * v2);
+  const disc = v2 * v2 - g * (g * d * d + 2 * dy * v2);
   if (disc < 0) return Math.PI / 4;
-  return Math.atan((v2 - Math.sqrt(disc)) / (GRAVITY * d));
+  return Math.atan((v2 - Math.sqrt(disc)) / (g * d));
 }
 
 export class Gnome {
@@ -191,29 +219,32 @@ export class Gnome {
   private lastX = 0;
   private lastZ = 0;
   private readonly wobble = 0.08 + Math.random() * 0.14;
-  private readonly dmgMul = 0.48 + Math.random() * 0.14;
+  private readonly dmgMul = 0.42 + Math.random() * 0.12;
   private readonly bravery = 0.7 + Math.random() * 0.6;
   private mx = 0;
   private mz = 0;
   private botPitch = 0;
   private wasPee = false;
+  /** Some bots go looking for a fight, some prefer to wander. */
+  private readonly hunting = Math.random() < 0.4;
 
   constructor(
     scene: THREE.Scene,
     readonly name: string,
     readonly color: number,
     readonly isPlayer: boolean,
+    shirt = 0,
   ) {
-    const lite = makeLite(SHIRTS[Math.floor(Math.random() * SHIRTS.length)], color);
+    const lite = makeLite(SHIRTS[shirt % SHIRTS.length], color);
     this.root = lite.root;
     this.legL = lite.legL;
     this.legR = lite.legR;
     this.mat = lite.mat;
-    this.root.scale.multiplyScalar(VISUAL_SCALE / 0.8);
+    this.root.scale.setScalar(VISUAL_SCALE);
     this.root.rotation.order = 'YXZ';
     scene.add(this.root);
 
-    this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.75, 14).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
+    this.shadow = new THREE.Mesh(shadowGeo, shadowMat);
     this.shadow.position.y = 0.04;
     scene.add(this.shadow);
 
@@ -224,7 +255,7 @@ export class Gnome {
     scene.add(this.marker);
 
     this.bar = new THREE.Group();
-    const bg = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({ color: 0x120a22, transparent: true, opacity: 0.8, depthTest: false }));
+    const bg = new THREE.Mesh(barGeo, barBgMat);
     bg.scale.set(1.5, 0.26, 1);
     bg.renderOrder = 6;
     this.barFill = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({ color, depthTest: false }));
@@ -346,15 +377,15 @@ export class Gnome {
   }
 
   /** A hop. Only from the ground, and not while frozen. */
-  jump() {
-    if (this.alive && this.pos.y <= 0.02 && this.frozen <= 0) this.vy = 8;
+  jump(v = 8) {
+    if (this.alive && this.pos.y <= 0.02 && this.frozen <= 0) this.vy = v;
   }
 
   // --- the bot brain -------------------------------------------------------------------------------
 
   private pickTarget(A: Arena) {
     let best: Gnome | null = null;
-    let bd = 17;
+    let bd = 22;
     const cur = this.target && this.target.alive ? this.target : null;
     for (const g of A.gnomes) {
       if (g === this || !g.alive) continue;
@@ -418,7 +449,7 @@ export class Gnome {
       const ang = Math.atan2(ax, az) + Math.sin(A.time * 2.1 + this.id * 1.7) * this.wobble;
       this.aimX = Math.sin(ang);
       this.aimZ = Math.cos(ang);
-      this.botPitch = aimPitch(Math.max(d, 1), 0.9 - 0.75 + tgt.pos.y - this.pos.y);
+      this.botPitch = aimPitch(Math.max(d, 1), 0.9 - 0.75 + tgt.pos.y - this.pos.y, A.pee.gravity);
       this.hasAim = true;
       const clear = !this.blocked(A, tgt.pos.x, tgt.pos.z);
       this.wantPee = d < RANGE * 0.97 && !scared && clear && !this.locked && this.bladder > 2 && Math.abs(angleDiff(this.yaw, ang)) < 0.35;
@@ -430,7 +461,16 @@ export class Gnome {
       this.wanderT -= dt;
       const bonus = A.bugs.nearestBonus(this.pos.x, this.pos.z, 22);
       const pot = this.mask !== 7 ? A.potions.nearest(this.pos.x, this.pos.z, 26, this.mask) : null;
-      const goal = bonus ?? pot;
+      let goal: { x: number; z: number } | null = bonus ?? pot;
+      if (!goal && this.hunting) {
+        // with fifty gnomes about, go and find one
+        let bd = Infinity;
+        for (const g of A.gnomes) {
+          if (g === this || !g.alive) continue;
+          const d = Math.hypot(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
+          if (d < bd) { bd = d; goal = g.pos; }
+        }
+      }
       if (goal) this.wander.set(goal.x, 0, goal.z);
       else if (this.wanderT <= 0 || Math.hypot(this.wander.x - this.pos.x, this.wander.z - this.pos.z) < 1.5) {
         const lim = Math.max(6, Math.min(A.ringR - 6, HALF - 4));
@@ -486,6 +526,7 @@ export class Gnome {
       this.shadow.visible = this.deathT < 4;
       this.root.visible = this.deathT < 4.5;
       this.syncVisual(dt);
+      this.cull(A);
       return;
     }
 
@@ -495,8 +536,8 @@ export class Gnome {
     this.speedT = Math.max(0, this.speedT - dt);
     this.freeT = Math.max(0, this.freeT - dt);
     // bouncing: hop whenever you land, for as long as it lasts
-    if (this.bounceT > 0) { this.bounceT -= dt; if (this.pos.y <= 0.001 && this.frozen <= 0) this.vy = 8; }
-    this.vy -= 24 * dt;
+    if (this.bounceT > 0) { this.bounceT -= dt; if (this.pos.y <= 0.001 && this.frozen <= 0) this.vy = A.mod === 'moon' ? 10.5 : 8; }
+    this.vy -= 24 * (A.mod === 'moon' ? 0.32 : 1) * dt;
     this.pos.y += this.vy * dt;
     if (this.pos.y < 0) { this.pos.y = 0; this.vy = 0; }
     if (this.burn > 0) { this.burn -= dt; this.dot(8 * dt, this.burnBy, A.time); if (this.wet > 0.2) this.burn = Math.min(this.burn, 0.4); }
@@ -521,7 +562,7 @@ export class Gnome {
     const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : 1) * (this.speedT > 0 ? 1.55 : 1);
     const tx = frozen ? 0 : this.moveX * scale * speed;
     const tz = frozen ? 0 : this.moveZ * scale * speed;
-    const k = 1 - Math.exp(-14 * dt);
+    const k = 1 - Math.exp(-(A.mod === 'slippery' ? 2.2 : 14) * dt);
     this.vel.x += (tx - this.vel.x) * k;
     this.vel.z += (tz - this.vel.z) * k;
     this.pos.x += this.vel.x * dt;
@@ -573,6 +614,21 @@ export class Gnome {
     this.wet = Math.max(0, this.wet - dt);
     this.walkPhase += speedNow * dt * 2.4;
     this.syncVisual(dt);
+    this.cull(A);
+  }
+
+  /** Far-away gnomes are not drawn, and only near ones get a marker and a health bar: fifty of them is a lot of draw calls. */
+  private cull(A: Arena) {
+    const dx = this.pos.x - A.camera.position.x;
+    const dz = this.pos.z - A.camera.position.z;
+    const d2 = dx * dx + dz * dz;
+    const near = d2 < A.drawDist * A.drawDist;
+    if (!(this.isPlayer && this.alive)) {
+      this.root.visible = near && (this.alive || this.deathT < 4.5);
+      this.shadow.visible = near && (this.alive || this.deathT < 4);
+    }
+    this.marker.visible = !this.isPlayer && this.alive && d2 < 55 * 55;
+    this.bar.visible = !this.isPlayer && this.alive && d2 < 28 * 28;
   }
 
   /** The brain and its sidestep, kept apart so the brain stays readable. */

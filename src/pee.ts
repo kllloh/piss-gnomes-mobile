@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Forest } from './forest';
 import type { Gnome } from './gnomes';
 
-const MAX = 1400;
+const MAX = 3400;
 export const SPEED = 16; // metres per second out of the gnome
 export const GRAVITY = 9;
 const LIFE = 2;
@@ -69,6 +69,9 @@ export class PeeSystem {
   private owner: (Gnome | null)[] = new Array(MAX).fill(null);
   private kind = new Uint8Array(MAX);
   private rgb = new Float32Array(MAX * 3);
+  /** Pulled down in the Moon mode, so streams carry much further. */
+  gravity = GRAVITY;
+  private buckets = new Map<number, Gnome[]>();
   private tmpCol = new THREE.Color();
   private count = 0;
   private acc = new Map<number, number>();
@@ -146,7 +149,7 @@ export class PeeSystem {
     const vz = dz * SPEED;
     for (let t = 0.04; t < LIFE; t += 0.04) {
       const x = ox + vx * t;
-      const y = oy + vy * t - 0.5 * GRAVITY * t * t;
+      const y = oy + vy * t - 0.5 * this.gravity * t * t;
       const z = oz + vz * t;
       if (y < 0.04 || forest.pointHit(x, y, z)) { out.x = x; out.z = z; return true; }
     }
@@ -179,10 +182,21 @@ export class PeeSystem {
   }
 
   update(dt: number, forest: Forest, targets: Gnome[], onHit: (victim: Gnome, shooter: Gnome, mask: number, x: number, z: number) => void) {
+    // bucket the living gnomes so each droplet only looks at its neighbours
+    const buckets = this.buckets;
+    for (const list of buckets.values()) list.length = 0;
+    for (let k = 0; k < targets.length; k++) {
+      const t = targets[k];
+      if (!t.alive) continue;
+      const key = (Math.floor(t.pos.x / 4) + 64) * 256 + Math.floor(t.pos.z / 4) + 64;
+      let list = buckets.get(key);
+      if (!list) { list = []; buckets.set(key, list); }
+      list.push(t);
+    }
     for (let i = this.count - 1; i >= 0; i--) {
       this.life[i] -= dt;
       if (this.life[i] <= 0) { this.remove(i); continue; }
-      this.vy[i] -= GRAVITY * dt;
+      this.vy[i] -= this.gravity * dt;
       const x = (this.px[i] += this.vx[i] * dt);
       const y = (this.py[i] += this.vy[i] * dt);
       const z = (this.pz[i] += this.vz[i] * dt);
@@ -194,12 +208,20 @@ export class PeeSystem {
       if (forest.pointHit(x, y, z)) { this.remove(i); continue; }
       const shooter = this.owner[i]!;
       let hit: Gnome | null = null;
-      for (let k = 0; k < targets.length; k++) {
-        const t = targets[k];
-        if (!t.alive || t === shooter) continue;
-        const ddx = t.pos.x - x;
-        const ddz = t.pos.z - z;
-        if (ddx * ddx + ddz * ddz < 0.45 && y > t.pos.y - 0.2 && y < t.pos.y + 2.4) { hit = t; break; }
+      const bx = Math.floor(x / 4) + 64;
+      const bz = Math.floor(z / 4) + 64;
+      search: for (let cx = bx - 1; cx <= bx + 1; cx++) {
+        for (let cz = bz - 1; cz <= bz + 1; cz++) {
+          const list = buckets.get(cx * 256 + cz);
+          if (!list) continue;
+          for (let k = 0; k < list.length; k++) {
+            const t = list[k];
+            if (!t.alive || t === shooter) continue;
+            const ddx = t.pos.x - x;
+            const ddz = t.pos.z - z;
+            if (ddx * ddx + ddz * ddz < 0.45 && y > t.pos.y - 0.2 && y < t.pos.y + 2.4) { hit = t; break search; }
+          }
+        }
       }
       if (hit) {
         onHit(hit, shooter, this.kind[i], x, z);

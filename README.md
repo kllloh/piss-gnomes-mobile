@@ -1,6 +1,6 @@
 # Piss Gnomes: Last Gnome Standing (mobile/tablet)
 
-A first-person spin-off of Piss Gnomes, styled like a PS2 Katamari game (candy colours, chunky low-poly, pastel UI) made for phones and tablets. Ten gnomes, one small enchanted forest,
+A first-person spin-off of Piss Gnomes, styled like a PS2 Katamari game (candy colours, chunky low-poly, pastel UI) made for phones and tablets. Fifty gnomes, one huge enchanted forest,
 pee is the only weapon, and a closing mist forces a finish. Last gnome standing wins. Swirling sky, warping colours that
 get wilder as you take damage, and a generative trance soundtrack.
 
@@ -62,3 +62,9 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Tuned to your device:** at start the game picks a quality level from the hardware (`?quality=low|mid|high` to force one;
   see the console for why). While you play a frame-time governor lowers the render resolution, then turns the post pass off, if frames run slow,
   and brings the sharpness back when there is headroom. 120 Hz screens are held to about 60 fps, and the screen is kept awake during a match.
+- **50 players, big map:** the forest is about five times the area (180 x 180) with roughly 480 mushrooms, 30 potions and 18 beetles. 49 bots
+  spawn on three rings; some hunt for a fight, others wander and grab pickups. The mist now starts after 45 s and takes 5 minutes to close.
+  Far-away gnomes are not drawn, models and bug/bottle meshes are shared and merged, and droplet hits use a neighbour grid, so 50 gnomes stay cheap.
+- **Six modes:** the three new ones are **Upside Down** (the whole picture flips 180 degrees, and left/right and up/down on your controls swap
+  so they still feel right on screen), **Moon** (low gravity: jumps are about 7 units high and streams fly about three times as far, under a star sky with the Earth
+  hanging in it) and **Slippery** (everyone skids as if on ice, under a frosty aurora sky). Each has its own sky, lighting, colour grade, music and banter.

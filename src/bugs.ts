@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HALF, type Forest } from './forest';
 import { MAX_HP, type Gnome } from './gnomes';
 
@@ -11,7 +12,7 @@ export const BONUS_INFO: Record<BonusKind, { name: string; blurb: string; color:
 };
 const KINDS: BonusKind[] = ['speed', 'health', 'bounce', 'gulp'];
 
-const BUG_COUNT = 6;
+const BUG_COUNT = 18;
 const BONUS_LIFE = 16;
 const GRAB = 1.5;
 const PUFFS = 36;
@@ -20,7 +21,8 @@ const SHELLS = [0x2f9a5a, 0xd8742a, 0x7a4fb0, 0x2a8ad0, 0xc03a5a, 0x9ab02a];
 
 interface Bug {
   root: THREE.Group;
-  legs: THREE.Group[];
+  legL: THREE.Group;
+  legR: THREE.Group;
   tail: THREE.Group;
   pos: THREE.Vector3;
   yaw: number;
@@ -62,7 +64,7 @@ const ringGeo = new THREE.RingGeometry(0.7, 0.95, 20).rotateX(-Math.PI / 2);
 const puffGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
 
 /** A blocky voxel beetle: stacked cubes for the shell, cube eyes, stick legs. Front is -z. */
-function makeBug(shell: number): { root: THREE.Group; legs: THREE.Group[]; tail: THREE.Group } {
+function makeBug(shell: number): { root: THREE.Group; legs: THREE.Group[]; tail: THREE.Group; body: THREE.Group } {
   const root = new THREE.Group();
   const body = new THREE.Group();
   const mats = new Map<number, THREE.MeshLambertMaterial>();
@@ -111,7 +113,76 @@ function makeBug(shell: number): { root: THREE.Group; legs: THREE.Group[]; tail:
   body.add(tail);
   root.add(body);
   root.scale.setScalar(0.6);
-  return { root, legs, tail };
+  return { root, legs, tail, body };
+}
+
+// --- baked bugs: one draw call each for the body, the two sets of legs and the tail, sharing geometry between bugs ---
+
+function bakeObjects(frame: THREE.Object3D, objects: THREE.Object3D[], exclude?: THREE.Object3D): THREE.BufferGeometry {
+  frame.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(frame.matrixWorld).invert();
+  const geos: THREE.BufferGeometry[] = [];
+  const visit = (o: THREE.Object3D) => {
+    if (o === exclude) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh) {
+      const g = m.geometry.clone();
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+      const col = (m.material as THREE.MeshLambertMaterial).color;
+      const n = g.attributes.position.count;
+      const arr = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { arr[i * 3] = col.r; arr[i * 3 + 1] = col.g; arr[i * 3 + 2] = col.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+      // merging needs every geometry to be non-indexed or all indexed
+      geos.push(g.index ? g.toNonIndexed() : g);
+    }
+    o.children.forEach(visit);
+  };
+  objects.forEach(visit);
+  return mergeGeometries(geos, false)!;
+}
+
+interface BugGeo {
+  body: THREE.BufferGeometry;
+  legL: THREE.BufferGeometry;
+  legR: THREE.BufferGeometry;
+  tail: THREE.BufferGeometry;
+}
+const PIVOT_L = new THREE.Vector3(-0.72, 0.5, 0.1);
+const PIVOT_R = new THREE.Vector3(0.72, 0.5, 0.1);
+const bugGeos = new Map<number, BugGeo>();
+const bugMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+
+function buildBug(shell: number): { root: THREE.Group; legL: THREE.Group; legR: THREE.Group; tail: THREE.Group } {
+  let g = bugGeos.get(shell);
+  if (!g) {
+    const m = makeBug(shell);
+    m.root.scale.setScalar(1);
+    const left = m.legs.filter((_, i) => i % 2 === 0);
+    const right = m.legs.filter((_, i) => i % 2 === 1);
+    g = {
+      body: bakeObjects(m.root, [m.body], m.tail),
+      legL: bakeObjects(m.root, left).translate(-PIVOT_L.x, -PIVOT_L.y, -PIVOT_L.z),
+      legR: bakeObjects(m.root, right).translate(-PIVOT_R.x, -PIVOT_R.y, -PIVOT_R.z),
+      tail: bakeObjects(m.tail, [m.tail]),
+    };
+    bugGeos.set(shell, g);
+  }
+  const root = new THREE.Group();
+  const body = new THREE.Mesh(g.body, bugMat);
+  const legL = new THREE.Group();
+  legL.position.copy(PIVOT_L);
+  legL.add(new THREE.Mesh(g.legL, bugMat));
+  const legR = new THREE.Group();
+  legR.position.copy(PIVOT_R);
+  legR.add(new THREE.Mesh(g.legR, bugMat));
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.55, 1.25);
+  tail.add(new THREE.Mesh(g.tail, bugMat));
+  root.add(body, legL, legR);
+  root.add(tail);
+  root.scale.setScalar(0.6);
+  return { root, legL, legR, tail };
 }
 
 /** Bugs wander the forest, stop, shudder and fart out a random bonus. Anybody can walk into it. */
@@ -127,12 +198,12 @@ export class Bugs {
   constructor(scene: THREE.Scene, private forest: Forest) {
     this.scene = scene;
     for (let i = 0; i < BUG_COUNT; i++) {
-      const m = makeBug(SHELLS[i % SHELLS.length]);
+      const m = buildBug(SHELLS[i % SHELLS.length]);
       const pos = forest.randomFree(HALF - 6);
       m.root.position.copy(pos);
       scene.add(m.root);
       this.bugs.push({
-        root: m.root, legs: m.legs, tail: m.tail, pos, yaw: Math.random() * 6, goal: pos.clone(), goalT: 0, walk: Math.random() * 6,
+        root: m.root, legL: m.legL, legR: m.legR, tail: m.tail, pos, yaw: Math.random() * 6, goal: pos.clone(), goalT: 0, walk: Math.random() * 6,
         fartIn: 4 + Math.random() * 10, farting: 0, stuckT: 0, lastX: pos.x, lastZ: pos.z, avoidT: 0, avoidDir: 1, farted: false,
       });
     }
@@ -263,7 +334,8 @@ export class Bugs {
       if (speed > 0) b.walk += dt * 12;
       b.root.position.z = b.pos.z;
       b.root.rotation.y = b.yaw + Math.PI;
-      b.legs.forEach((leg, i) => (leg.rotation.y = speed > 0 ? Math.sin(b.walk + i * 1.7) * 0.5 : 0));
+      b.legL.rotation.y = speed > 0 ? Math.sin(b.walk) * 0.35 : 0;
+      b.legR.rotation.y = speed > 0 ? -Math.sin(b.walk) * 0.35 : 0;
     }
 
     // --- gas clouds ---

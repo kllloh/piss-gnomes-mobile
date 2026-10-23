@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { SoftBox, lit, makePaintTexture } from './organic';
 
 /** Half the side of the (small, square) forest. */
-export const HALF = 38;
+export const HALF = 90;
 
 interface Solid {
   /** circle: x,z,r. rect: x0,z0,x1,z1 */
@@ -74,15 +74,17 @@ export class Forest {
     this.nx = Math.ceil((2 * HALF) / this.cell) + 4;
     this.grid = Array.from({ length: this.nx * this.nx }, () => []);
 
-    // ten spawn points on a ring, so nobody starts on top of anybody
-    for (let k = 0; k < 10; k++) {
-      const a = (k / 10) * Math.PI * 2 + 0.31;
-      this.spawns.push(new THREE.Vector3(Math.cos(a) * 25, 0, Math.sin(a) * 25));
+    // fifty spawn points on three rings, so nobody starts on top of anybody
+    for (const [r, count, off] of [[28, 10, 0.31], [52, 16, 0.1], [76, 24, 0.2]] as const) {
+      for (let k = 0; k < count; k++) {
+        const a = (k / count) * Math.PI * 2 + off;
+        this.spawns.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
+      }
     }
     const keepClear: { x: number; z: number; r: number }[] = [
       ...this.spawns.map((s) => ({ x: s.x, z: s.z, r: 4 })),
-      { x: 0, z: 0, r: 8 },
-      { x: -21, z: 19, r: 11 }, // the pond
+      { x: 0, z: 0, r: 14 },
+      { x: -52, z: 46, r: 17 }, // the pond
     ];
     const clear = (x: number, z: number, pad = 0) => keepClear.every((k) => Math.hypot(x - k.x, z - k.z) > k.r + pad);
 
@@ -93,7 +95,7 @@ export class Forest {
     ground.rotation.x = -Math.PI / 2;
     this.group.add(ground);
 
-    const patchCount = 40;
+    const patchCount = 130;
     const patches = instanced(new THREE.CylinderGeometry(0.5, 0.5, 0.03, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }), patchCount);
     for (let i = 0; i < patchCount; i++) {
       put(patches, i, between(-HALF + 4, HALF - 4), 0.03, between(-HALF + 4, HALF - 4), between(2.5, 8), 1, between(2.5, 8), rnd() * 3, pick([0xffffff, 0xffe066, 0xff9ad0, 0x9ae0ff]));
@@ -101,12 +103,12 @@ export class Forest {
     this.group.add(patches);
 
     // --- the thorn wall: spikes all round the edge (the clamp keeps everyone inside) -----
-    const thornN = 4 * 44;
+    const thornN = 4 * 100;
     const thorns = instanced(new THREE.ConeGeometry(0.5, 1, 5), lit({ color: 0xffffff, flatShading: true }), thornN);
     let ti = 0;
     for (let side = 0; side < 4; side++) {
-      for (let k = 0; k < 44; k++) {
-        const t = -HALF - 2 + (k / 43) * (2 * HALF + 4) + between(-0.4, 0.4);
+      for (let k = 0; k < 100; k++) {
+        const t = -HALF - 2 + (k / 99) * (2 * HALF + 4) + between(-0.4, 0.4);
         const off = HALF + 1.6 + between(0, 1.6);
         const [x, z] = side === 0 ? [t, -off] : side === 1 ? [t, off] : side === 2 ? [-off, t] : [off, t];
         const h = between(5, 9);
@@ -120,7 +122,7 @@ export class Forest {
     const spaced = (x: number, z: number, d: number) => placed.every((p) => Math.hypot(p.x - x, p.z - z) >= d);
     interface Shroom { x: number; z: number; h: number; w: number; s: number; col: number }
     const shrooms: Shroom[] = [];
-    for (let attempt = 0; attempt < 3000 && shrooms.length < 105; attempt++) {
+    for (let attempt = 0; attempt < 14000 && shrooms.length < 480; attempt++) {
       const x = between(-HALF + 3, HALF - 3);
       const z = between(-HALF + 3, HALF - 3);
       if (!clear(x, z) || !spaced(x, z, 4)) continue;
@@ -161,7 +163,7 @@ export class Forest {
 
     // --- rocks and fallen logs: low cover --------------------------------------------------
     const rockList: { x: number; z: number; w: number; h: number }[] = [];
-    for (let attempt = 0; attempt < 400 && rockList.length < 26; attempt++) {
+    for (let attempt = 0; attempt < 2500 && rockList.length < 110; attempt++) {
       const x = between(-HALF + 4, HALF - 4);
       const z = between(-HALF + 4, HALF - 4);
       if (!clear(x, z, 0.5) || !spaced(x, z, 3)) continue;
@@ -176,7 +178,7 @@ export class Forest {
     this.group.add(rocks);
 
     const logList: { x: number; z: number; w: number; d: number }[] = [];
-    for (let attempt = 0; attempt < 400 && logList.length < 16; attempt++) {
+    for (let attempt = 0; attempt < 2500 && logList.length < 60; attempt++) {
       const x = between(-HALF + 6, HALF - 6);
       const z = between(-HALF + 6, HALF - 6);
       if (!clear(x, z, 1) || !spaced(x, z, 4.2)) continue;
@@ -192,7 +194,7 @@ export class Forest {
     this.group.add(logs);
 
     // --- glowing little mushrooms (decor) --------------------------------------------------
-    const smallN = 130;
+    const smallN = 480;
     const stems = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 6), lit({ color: 0xf2e8d0 }), smallN);
     const caps = instanced(new THREE.ConeGeometry(0.62, 1, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), smallN);
     for (let i = 0; i < smallN; i++) {
@@ -205,18 +207,18 @@ export class Forest {
     this.group.add(stems, caps);
 
     // --- the pond with lily pads (flat decor) -----------------------------------------------
-    const pond = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.06, 28), new THREE.MeshBasicMaterial({ color: 0x4ab8ff, transparent: true, opacity: 0.85 }));
-    pond.position.set(-21, 0.05, 19);
+    const pond = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 0.06, 32), new THREE.MeshBasicMaterial({ color: 0x4ab8ff, transparent: true, opacity: 0.85 }));
+    pond.position.set(-52, 0.05, 46);
     this.group.add(pond);
-    const lilies = instanced(new SoftBox(1, 0.05, 1), new THREE.MeshBasicMaterial({ color: 0x4acf6a }), 10);
-    for (let i = 0; i < 10; i++) put(lilies, i, -21 + between(-6, 6), 0.1, 19 + between(-6, 6), between(1.1, 1.8), 1, between(1.1, 1.8), rnd() * 3);
+    const lilies = instanced(new SoftBox(1, 0.05, 1), new THREE.MeshBasicMaterial({ color: 0x4acf6a }), 22);
+    for (let i = 0; i < 22; i++) put(lilies, i, -52 + between(-10, 10), 0.1, 46 + between(-10, 10), between(1.1, 1.8), 1, between(1.1, 1.8), rnd() * 3);
     this.group.add(lilies);
 
     // --- the Old Stones in the middle: a ring of standing stones ------------------------------
-    for (let k = 0; k < 7; k++) {
-      const a = (k / 7) * Math.PI * 2;
-      const x = Math.cos(a) * 5;
-      const z = Math.sin(a) * 5;
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * Math.PI * 2;
+      const x = Math.cos(a) * 8;
+      const z = Math.sin(a) * 8;
       const h = between(3, 4.4);
       const stone = new THREE.Mesh(new SoftBox(1.3, h, 1.3), lit({ color: 0xd4d8ee, flatShading: true }));
       stone.position.set(x, h / 2, z);
@@ -224,12 +226,12 @@ export class Forest {
       this.group.add(stone);
       this.addCircle(x, z, 0.75, h);
     }
-    const altar = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.1, 0.5, 8), lit({ color: 0xe8ecfa, flatShading: true }));
+    const altar = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3, 0.5, 10), lit({ color: 0xe8ecfa, flatShading: true }));
     altar.position.set(0, 0.25, 0);
     this.group.add(altar);
 
     // --- fireflies ------------------------------------------------------------------------------
-    const flyN = 80;
+    const flyN = 200;
     this.flies = instanced(new SoftBox(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xf6ff8a }), flyN);
     for (let i = 0; i < flyN; i++) this.flyBase.push({ x: between(-HALF, HALF), y: between(1, 5), z: between(-HALF, HALF), p: rnd() * 6 });
     this.group.add(this.flies);

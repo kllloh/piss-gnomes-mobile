@@ -183,14 +183,14 @@ export class Sfx {
   private lastBeat = -9;
   private delay!: DelayNode;
   /** Which silly mode the soundtrack is dressed up as. */
-  mood: 'none' | 'disco' | 'goth' | 'bogan' = 'none';
+  mood: 'none' | 'disco' | 'goth' | 'bogan' | 'upside' | 'moon' | 'slippery' = 'none';
 
   /** 0..1, jumps on each beat and fades: the visuals pulse with it. */
   get beat(): number {
     return this.ctx ? Math.exp(-(this.ctx.currentTime - this.lastBeat) * 5) : 0;
   }
 
-  setMood(m: 'none' | 'disco' | 'goth' | 'bogan') {
+  setMood(m: 'none' | 'disco' | 'goth' | 'bogan' | 'upside' | 'moon' | 'slippery') {
     this.mood = m;
   }
 
@@ -236,7 +236,7 @@ export class Sfx {
   private schedule() {
     if (!this.ctx) return;
     const SCALE = [0, 1, 4, 5, 7, 8, 10, 12, 13, 16, 17, 19];
-    const bpm = this.mood === 'disco' ? 122 : this.mood === 'goth' ? 78 : this.mood === 'bogan' ? 118 : 108;
+    const bpm = this.mood === 'disco' ? 122 : this.mood === 'goth' ? 78 : this.mood === 'bogan' ? 118 : this.mood === 'upside' ? 92 : this.mood === 'moon' ? 70 : this.mood === 'slippery' ? 132 : 108;
     const sixteenth = 60 / bpm / 4;
     while (this.nextStep < this.ctx.currentTime + 0.25) {
       const t = this.nextStep;
@@ -260,6 +260,30 @@ export class Sfx {
           this.tone(130, 45, 0.14, 'sine', 0.3);
         }
         if (s % 8 === 4) this.tone(200, 90, 0.1, 'square', 0.12);
+        this.nextStep += sixteenth;
+        this.step = (this.step + 1) % 224;
+        continue;
+      }
+      if (this.mood === 'upside') {
+        // a slow, creepy descending arpeggio over a low drone
+        if (s % 2 === 0) this.note(this.root + 24 + SCALE[11 - (Math.floor(s / 2) % 12)], t, 0.4, 'triangle', 0.1, 1800, true);
+        if (s % 32 === 0) this.note(this.root - 12, t, 3.2, 'sawtooth', 0.09, 400, true);
+        this.nextStep += sixteenth;
+        this.step = (this.step + 1) % 224;
+        continue;
+      }
+      if (this.mood === 'moon') {
+        // wide, floaty and spacey
+        if (s % 8 === 0) this.note(this.root + 24 + SCALE[(Math.floor(s / 8) * 3) % 7], t, 1.8, 'sine', 0.12, 3000, true);
+        if (s % 16 === 0) this.note(this.root + 12, t, 3, 'sine', 0.1, 1200, true);
+        this.nextStep += sixteenth;
+        this.step = (this.step + 1) % 224;
+        continue;
+      }
+      if (this.mood === 'slippery') {
+        // quick, bouncy plucks
+        if (s % 2 === 0) this.note(this.root + 24 + SCALE[(s * 3) % 7], t, 0.12, 'triangle', 0.12, 3200, true);
+        if (s % 4 === 0) this.note(this.root, t, 0.2, 'sine', 0.2, 600, false);
         this.nextStep += sixteenth;
         this.step = (this.step + 1) % 224;
         continue;

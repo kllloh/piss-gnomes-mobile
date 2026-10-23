@@ -79,6 +79,24 @@ export const LINES: Record<string, string[]> = {
   'hit:disco': ['Not on the sequins!', 'My disco pants!', 'Too wet to boogie!', 'Ow! My groove!'],
   'death:disco': ['The disco is over!', 'I die dancing!', 'Turn the music... up...', 'Stayin\' dead!', 'Last dance... SPLASH!'],
   'kill:disco': ['Boogie down, buddy!', 'That was a smooth move!', 'DANCE FLOOR CLOSED!'],
+  // --- upside down mode ---
+  'idle:upside': ['Why is the sky down there?', 'My hat is falling UP!', 'I feel dizzy and right-side-wrong.', 'Which way is up? Is it the other way?', 'The ground is where the sky should be!'],
+  'hit:upside': ['Ow! Upside down OW!', 'My blood is rushing to my beard!', 'That hit me from below! Above!'],
+  'death:upside': ['I fell... up...', 'Tell them I went the wrong way!', 'Down is the new up!'],
+  'kill:upside': ['Flipped you!', 'Turned that frown upside down. And dead.', 'Gravity wins again!'],
+  'taunt:upside': ["Taste the upside-down rainbow!", "Don't slip, ceiling is wet!", 'Which way is the puddle? Haha!'],
+  // --- moon mode ---
+  'idle:moon': ['I weigh nothing! NOTHING!', 'Floaty! I am floaty!', 'One small step for a damp gnome.', 'Is that Earth? It looks wet!', 'I can see my house from here! Oh no, that is a mushroom.'],
+  'hit:moon': ['Ow! In space!', 'A moon splash!', 'Houston, I am damp!'],
+  'death:moon': ['I am one with the moon dust...', 'Tell Earth I said hi...', 'To infinity and... splat!'],
+  'kill:moon': ['Moon-walked all over you!', 'Out of this world!', 'Lunar tinkle!'],
+  'taunt:moon': ['Taste the rainbow, from orbit!', "Don't slip, there is no gravity!", 'Incoming from space!'],
+  // --- slippery mode ---
+  'idle:slippery': ['Wheeee! I cannot stop!', 'My feet have a mind of their own!', 'Why is everything so slidey?', 'Ice skating, gnome style!', 'Where are the brakes?!'],
+  'hit:slippery': ['Ooh, I am sliding!', 'Slipped! On my own pee!', 'Wipe out!'],
+  'death:slippery': ['I slipped... right out of existence!', 'My last slide!', 'Aaaaah... slooooping...'],
+  'kill:slippery': ['Slip, slide, splash!', 'You slipped on my wee!', 'Told you not to slip!'],
+  'taunt:slippery': ["Don't slip! Too late!", 'Taste the rainbow, ice skater!', 'Careful, it is slippery! Hehe!'],
   // --- goth mode ---
   'idle:goth': ['Nothing matters. Also, my feet are wet.', 'The darkness gets me. Also, a rash.', 'I feel things. Mostly damp.', 'Life is pain. And mildew.', 'Why do I even bother peeing?', 'My heart is a black hole. And my hat too.'],
   'hit:goth': ['It rains in my soul. And my pants.', 'Pain is just poetry.', 'Ugh. Whatever.', 'Eternal sorrow! And wetness!'],
@@ -92,6 +110,9 @@ export const LINES: Record<string, string[]> = {
 };
 
 const BANNER_SUB: Record<Mod, string[]> = {
+  upside: ['EVERYTHING IS UPSIDE DOWN! Even the pee!', 'The world flipped! Controls too!', 'Hold on to your hat, gravity has opinions!'],
+  moon: ['Low gravity! Streams fly three times as far!', 'One small step for gnomes!', 'Moon mode! Jump high, pee far!'],
+  slippery: ['Slip and slide! Everybody skids!', 'Wet floor! Very wet floor!', 'Ice everywhere! Steer carefully!'],
   disco: ['Everybody boogie! Pee faster, groove harder.', 'The glitter ball has arrived!', 'Disco inferno! Fast feet, fast flow!'],
   goth: ['Nothing matters. Health does not creep back.', 'Darkness descends. Hope is for the damp.', 'Eternal gloom. No healing allowed.'],
   bogan: ['Chuck us a tinnie! Bladder lasts longer, aim goes wonky.', 'Cheers, mate! Drunk aim, big bladder!', 'Bogan hour! Ripper bladder, wobbly stream!'],

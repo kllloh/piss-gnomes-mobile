@@ -71,13 +71,34 @@ void main() {
       float bd = acos(clamp(dot(d, bm), -1.0, 1.0));
       mc += vec3(0.85, 0.05, 0.1) * smoothstep(0.3, 0.27, bd);
       mc += vec3(0.4, 0.0, 0.1) * smoothstep(0.7, 0.28, bd) * 0.4;
-    } else {
+    } else if (mode < 3.5) {
       // bogan: an Aussie arvo sunset
       mc = mix(vec3(1.0, 0.45, 0.1), vec3(0.3, 0.12, 0.45), smoothstep(-0.05, 0.75, d.y));
       vec3 sm = normalize(vec3(0.5, 0.1, -0.85));
       float sd2 = acos(clamp(dot(d, sm), -1.0, 1.0));
       mc += vec3(1.0, 0.9, 0.5) * smoothstep(0.2, 0.17, sd2);
       mc += vec3(1.0, 0.5, 0.1) * smoothstep(0.8, 0.15, sd2) * 0.25;
+    } else if (mode < 4.5) {
+      // upside down: a violet and orange twilight with drifting ash
+      mc = mix(vec3(0.95, 0.45, 0.3), vec3(0.22, 0.08, 0.4), smoothstep(-0.05, 0.7, d.y));
+      mc += vec3(0.6, 0.2, 0.8) * 0.25 * (0.5 + 0.5 * sin(d.x * 6.0 + time * 0.3) * sin(d.z * 5.0 - time * 0.2));
+      mc += step(0.985, hash(floor(d * 50.0 + vec3(0.0, floor(time * 2.0), 0.0)))) * vec3(1.0, 0.7, 0.5);
+    } else if (mode < 5.5) {
+      // moon: a black star-field and the Earth hanging in it
+      float sh = hash(floor(d * 110.0));
+      mc = vec3(0.01, 0.01, 0.04) + step(0.975, sh) * (0.6 + 0.4 * sin(time * 2.0 + sh * 30.0));
+      vec3 em = normalize(vec3(-0.45, 0.4, -0.8));
+      float ed = acos(clamp(dot(d, em), -1.0, 1.0));
+      vec3 earth = mix(vec3(0.1, 0.35, 0.9), vec3(0.2, 0.8, 0.4), 0.5 + 0.5 * sin(d.x * 18.0 + d.y * 9.0));
+      earth += vec3(0.25) * smoothstep(0.0, 0.3, 0.5 + 0.5 * sin(d.z * 30.0 + time * 0.05));
+      mc = mix(mc, earth, smoothstep(0.24, 0.22, ed));
+      mc += vec3(0.3, 0.5, 1.0) * smoothstep(0.34, 0.22, ed) * 0.2;
+    } else {
+      // slippery: an icy sky with an aurora
+      mc = mix(vec3(0.85, 0.97, 1.0), vec3(0.35, 0.7, 0.95), smoothstep(-0.05, 0.8, d.y));
+      float au = smoothstep(0.55, 1.0, sin(d.x * 3.0 + sin(d.z * 2.5 + time * 0.4) * 1.4 + d.y * 5.0 + time * 0.3));
+      mc += vec3(0.2, 1.0, 0.7) * au * 0.45 * smoothstep(0.1, 0.5, d.y);
+      mc += step(0.99, hash(floor(d * 80.0))) * 0.8 * smoothstep(0.2, 0.6, d.y);
     }
     col = mix(col, mc, modeAmt);
   }
@@ -166,10 +187,22 @@ void main() {
       // goth: drained of colour, dark at the edges
       col = mix(col, vec3(lum2) * vec3(0.85, 0.75, 1.0), 0.75 * modeAmt);
       col *= 1.0 - modeAmt * (0.35 + r * r * 1.4);
-    } else {
+    } else if (mode < 3.5) {
       // bogan: warm, hazy and a bit wobbly
       col = mix(col, col * vec3(1.25, 1.0, 0.72) + vec3(0.04, 0.02, 0.0), modeAmt);
       col = mix(col, vec3(lum2) * vec3(1.2, 1.0, 0.8), 0.15 * modeAmt);
+    } else if (mode < 4.5) {
+      // upside down: a violet-orange grade
+      col = mix(col, col * vec3(1.1, 0.8, 1.25) + vec3(0.03, 0.0, 0.05), modeAmt);
+      col = mix(col, vec3(lum2) * vec3(1.1, 0.8, 1.3), 0.25 * modeAmt);
+    } else if (mode < 5.5) {
+      // moon: cold and contrasty
+      col = mix(col, vec3(lum2) * vec3(0.9, 0.95, 1.1), 0.5 * modeAmt);
+      col = mix(col, pow(col, vec3(1.25)) * 1.15, modeAmt * 0.6);
+    } else {
+      // slippery: icy blue with a frosty ripple
+      col = mix(col, col * vec3(0.85, 1.05, 1.25) + vec3(0.0, 0.03, 0.06), modeAmt);
+      col += modeAmt * 0.05 * vec3(0.6, 0.9, 1.0) * (0.5 + 0.5 * sin(r * 20.0 - time * 1.5));
     }
   }
   if (outlineAmt > 0.001) col = mix(col, vec3(0.04, 0.015, 0.1), inkEdge(uv) * 0.5 * outlineAmt);
@@ -213,7 +246,7 @@ export class Trip {
   postOk = false;
   /** 0 = a normal night forest, 1 = full psychedelia (comes with low health). */
   psy = 0;
-  /** A silly mode: 1 disco, 2 goth, 3 bogan, with how strongly it is on (0..1). */
+  /** A silly mode: 1 disco, 2 goth, 3 bogan, 4 upside down, 5 moon, 6 slippery, with how strongly it is on (0..1). */
   mode = 1;
   modeAmt = 0;
 
@@ -282,7 +315,7 @@ export class Trip {
     palette(t * 0.03, out).multiplyScalar(0.22);
     out.lerp(this.tmpC.setRGB(0.86, 0.93, 1.0), 1 - this.psy); // calm: the pale blue horizon of a sunny sky
     if (this.modeAmt > 0.001) {
-      const m = this.mode < 1.5 ? palette(t * 0.12, this.tmpC).multiplyScalar(0.45) : this.mode < 2.5 ? this.tmpC.setRGB(0.04, 0.0, 0.03) : this.tmpC.setRGB(0.55, 0.28, 0.1);
+      const m = this.mode < 1.5 ? palette(t * 0.12, this.tmpC).multiplyScalar(0.45) : this.mode < 2.5 ? this.tmpC.setRGB(0.04, 0.0, 0.03) : this.mode < 3.5 ? this.tmpC.setRGB(0.55, 0.28, 0.1) : this.mode < 4.5 ? this.tmpC.setRGB(0.45, 0.2, 0.5) : this.mode < 5.5 ? this.tmpC.setRGB(0.02, 0.02, 0.06) : this.tmpC.setRGB(0.8, 0.93, 1.0);
       out.lerp(m, this.modeAmt);
     }
     return out;
