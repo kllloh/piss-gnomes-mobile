@@ -28,8 +28,29 @@ export const PEE: Record<PeeKind, PeeDef> = {
   acid: { name: 'Acid Pee', color: 0x7aff2a, dmg: 0.4, blurb: 'Melts, and they take more from everything.' },
 };
 export const POTION_KINDS: PeeKind[] = ['chili', 'ice', 'acid'];
-const KINDS: PeeKind[] = ['normal', 'chili', 'ice', 'acid'];
-const KCOL = KINDS.map((k) => new THREE.Color(PEE[k].color));
+/** Each potion is one bit of a stream's mix: 1 chili, 2 ice, 4 acid. */
+export const KIND_BIT: Record<string, number> = { chili: 1, ice: 2, acid: 4 };
+
+export interface MixInfo {
+  name: string;
+  color: number;
+  /** hit points per droplet */
+  dmg: number;
+  blurb: string;
+}
+
+/** What a stream does for each combination of potions (index = the mix bits). */
+export const MIX: MixInfo[] = [
+  PEE.normal,
+  PEE.chili,
+  PEE.ice,
+  { name: 'Thermal Shock', color: 0xffb070, dmg: 0.5, blurb: 'Hot AND cold: anyone burning and chilled takes double damage.' },
+  PEE.acid,
+  { name: 'Napalm', color: 0xd4ff2a, dmg: 0.5, blurb: 'Burns for longer, and the fire jumps to anyone standing nearby.' },
+  { name: 'Cryo-Acid', color: 0x7affd8, dmg: 0.5, blurb: 'Frozen victims take 60% more, and the acid bites twice as hard.' },
+  { name: 'Rainbow Cocktail', color: 0xff8af0, dmg: 0.62, blurb: 'Everything at once, and it leaves them dizzy!' },
+];
+const MCOL = MIX.map((m) => new THREE.Color(m.color));
 
 const dummy = new THREE.Object3D();
 const C_PLAYER = new THREE.Color(0xfff04a);
@@ -89,13 +110,13 @@ export class PeeSystem {
   }
 
   /** Emit this frame's share of a stream from gnome `g`, leaving (ox, oy, oz) along the unit direction (dx, dy, dz). */
-  emit(g: Gnome, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, dt: number, kind: PeeKind = 'normal', rate = 1, spreadMul = 1) {
+  emit(g: Gnome, ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, dt: number, mask = 0, rate = 1, spreadMul = 1) {
     const a = (this.acc.get(g.id) ?? 0) + dt * RATE * rate;
-    const ki = KINDS.indexOf(kind);
+    const ki = mask;
     const n = Math.floor(a);
     this.acc.set(g.id, a - n);
-    const base = ki > 0 ? KCOL[ki] : g.isPlayer ? C_PLAYER : C_BOT;
-    const wiz = g.wizard > 0;
+    const base = ki > 0 ? MCOL[ki] : g.isPlayer ? C_PLAYER : C_BOT;
+    const wiz = g.wizard > 0 || ki === 7;
     for (let k = 0; k < n && this.count < MAX; k++) {
       const i = this.count++;
       const sp = SPEED * (0.96 + Math.random() * 0.08);
@@ -157,7 +178,7 @@ export class PeeSystem {
     this.pSize[i] = 0.8 + Math.random() * 0.9;
   }
 
-  update(dt: number, forest: Forest, targets: Gnome[], onHit: (victim: Gnome, shooter: Gnome, kind: PeeKind, x: number, z: number) => void) {
+  update(dt: number, forest: Forest, targets: Gnome[], onHit: (victim: Gnome, shooter: Gnome, mask: number, x: number, z: number) => void) {
     for (let i = this.count - 1; i >= 0; i--) {
       this.life[i] -= dt;
       if (this.life[i] <= 0) { this.remove(i); continue; }
@@ -181,7 +202,7 @@ export class PeeSystem {
         if (ddx * ddx + ddz * ddz < 0.45 && y > t.pos.y - 0.2 && y < t.pos.y + 2.4) { hit = t; break; }
       }
       if (hit) {
-        onHit(hit, shooter, KINDS[this.kind[i]], x, z);
+        onHit(hit, shooter, this.kind[i], x, z);
         this.remove(i);
       }
     }

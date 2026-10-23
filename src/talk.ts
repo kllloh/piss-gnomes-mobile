@@ -66,6 +66,10 @@ export const LINES: Record<string, string[]> = {
     'Did that bug just FART?!', 'BUG! WHAT DID YOU EAT?!', 'That is NOT a normal smell!', 'Whoever smelt it, dealt it. WAIT, THE BUG!', 'The bug did a toot!',
     'It is raining prizes from a bum!', 'Free stuff from a bottom! Forest rules!', 'I smell... opportunity. And eggs.', 'The air is green and I like it!',
   ],
+  'mix:potion': [
+    'COCKTAIL TIME! Shake it, don\'t stir it!', 'I am a walking chemistry set!', 'Two potions! TWO!', 'What happens if I mix them? SCIENCE!', 'This pee has LAYERS!',
+    'I have mixed the pee of destiny!', 'Mixology! Wee-ology!', 'Oh no. Oh YES. Mixed wee!',
+  ],
   mist: [
     'THE MIST! IT GROWS!', 'The forest has had ENOUGH of us!', 'Magenta fog! Somebody call a wizard!', 'The mist is hungry!', 'Run! Walk! Panic!',
   ],
@@ -222,7 +226,9 @@ export class Banter {
       const dist = _v.distanceTo(camera.position);
       _v.project(camera);
       const vis = _v.z < 1 && Math.abs(_v.x) < 1.15 && Math.abs(_v.y) < 1.1 && dist < 34;
-      b.el.style.opacity = vis ? String(Math.min(1, b.t * 2)) : '0';
+      // the further away somebody is, the fainter their words
+      const near = Math.max(0.12, Math.min(1, 1 - (dist - 5) / 27));
+      b.el.style.opacity = vis ? String(Math.min(1, b.t * 2) * near) : '0';
       const sc = Math.max(0.6, Math.min(1.1, 14 / dist + 0.35));
       b.el.style.transform = `translate(-50%, -100%) translate(${(_v.x * 0.5 + 0.5) * w}px, ${(-_v.y * 0.5 + 0.5) * h}px) scale(${sc})`;
     }

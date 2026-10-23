@@ -49,3 +49,8 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Mushroom forest:** the trees are now giant candy mushrooms (stems block movement and pee; caps are overhead).
 - **Thumb-friendly controls:** JUMP and PEE sit lifted off the bottom corners and are size-capped on tablets. You can slide your
   thumb on the PEE button to aim while you pee. The start screen now has a full How To Play section.
+- **Mixing potions:** you can hold chili, ice and acid at once (each has its own 25 s timer; a kind you already hold is left
+  alone). Mixes change the stream: **Thermal Shock** (chili + ice: burning-and-chilled victims take double), **Napalm**
+  (chili + acid: longer burn that jumps to anyone close), **Cryo-Acid** (ice + acid: frozen victims take 60% more and the
+  acid bites twice as hard) and the **Rainbow Cocktail** (all three: rainbow pee that leaves victims dizzy).
+- **Speech bubbles** fade with distance, and the beetles are smaller.

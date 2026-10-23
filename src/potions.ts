@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HALF, type Forest } from './forest';
-import { PEE, POTION_KINDS, type PeeKind } from './pee';
+import { PEE, POTION_KINDS, KIND_BIT, type PeeKind } from './pee';
 import type { Gnome } from './gnomes';
 
 const COUNT = 12;
@@ -62,11 +62,11 @@ export class Potions {
   }
 
   /** The closest bottle (that is still there) within `maxD`, or null. */
-  nearest(x: number, z: number, maxD: number): { x: number; z: number } | null {
+  nearest(x: number, z: number, maxD: number, held = 0): { x: number; z: number } | null {
     let best: Item | null = null;
     let bd = maxD;
     for (const it of this.items) {
-      if (!it.alive) continue;
+      if (!it.alive || (held & KIND_BIT[it.kind])) continue; // skip kinds you already have: you want a different one to mix
       const d = Math.hypot(it.x - x, it.z - z);
       if (d < bd) { bd = d; best = it; }
     }
@@ -89,14 +89,14 @@ export class Potions {
       it.body.rotation.y = t * 1.6;
       it.group.position.y = Math.sin(t * 2 + it.x) * 0.12;
       for (const g of gnomes) {
-        if (!g.alive || g.potion) continue;
+        if (!g.alive || g.potions[it.kind as 'chili'] > 0) continue; // a kind you already hold is left for a mix
         const dx = g.pos.x - it.x;
         const dz = g.pos.z - it.z;
         if (dx * dx + dz * dz < GRAB * GRAB) {
           it.alive = false;
           it.wait = RESPAWN;
           it.group.visible = false;
-          g.potion = { kind: it.kind, t: POTION_TIME };
+          g.potions[it.kind as 'chili'] = POTION_TIME;
           onPick(g, it.kind);
           break;
         }

@@ -6,7 +6,7 @@ import { Banter, modTagline } from './talk';
 import { Nathaniel } from './nathaniel';
 import { Bugs, BONUS_INFO, type BonusKind } from './bugs';
 import { Trip } from './trip';
-import { PeeSystem, RANGE, PEE } from './pee';
+import { PeeSystem, RANGE, PEE, MIX, KIND_BIT } from './pee';
 import { Input } from './input';
 import { Sfx } from './audio';
 
@@ -408,11 +408,16 @@ landMark.renderOrder = 9;
 landMark.visible = false;
 scene.add(landMark);
 
-function playerControls() {
+function playerControls(dt: number) {
   input.poll();
   const [ly, lp] = input.takeLook();
   player.yaw -= ly; // dragging right turns right
   player.pitch = Math.max(-0.9, Math.min(1.25, player.pitch + lp));
+  if (player.dizzy > 0) {
+    // Rainbow Cocktail: the world will not hold still
+    player.yaw += Math.sin(arena.time * 4.3) * 1.2 * dt;
+    player.pitch = Math.max(-0.9, Math.min(1.25, player.pitch + Math.cos(arena.time * 3.1) * 0.5 * dt));
+  }
   // the stick is relative to where you are facing
   const fx = Math.sin(player.yaw);
   const fz = Math.cos(player.yaw);
@@ -461,11 +466,13 @@ function updateHud() {
   $('bars').classList.toggle('locked', player.locked);
   $('blmsg').textContent = player.locked ? 'BLADDER EMPTY... REFILLING' : player.regenerating ? 'HEALTH ✚ · BLADDER' : 'HEALTH · BLADDER';
   const pot = $('potion');
-  if (player.potion) {
-    const info = PEE[player.potion.kind];
+  if (player.mask && player.alive) {
+    const info = MIX[player.mask];
+    const parts: string[] = [];
+    for (const k of ['chili', 'ice', 'acid'] as const) if (player.potions[k] > 0) parts.push(`${k.toUpperCase()} ${Math.ceil(player.potions[k])}s`);
     pot.style.display = 'block';
     pot.style.borderColor = '#' + info.color.toString(16).padStart(6, '0');
-    pot.textContent = `${info.name.toUpperCase()} ${Math.ceil(player.potion.t)}s`;
+    pot.textContent = parts.join(' + ') + (parts.length > 1 ? ` = ${info.name.toUpperCase()}` : '');
   } else pot.style.display = 'none';
   const wz = $('wizard');
   if (player.wizard > 0 && player.alive) {
@@ -522,7 +529,7 @@ function frame(nowMs: number, lastMs: number) {
     }
 
     if (state === 'play' || state === 'countdown') {
-      if (player.alive) playerControls();
+      if (player.alive) playerControls(dt);
       else { player.moveX = player.moveZ = 0; player.wantPee = false; player.hasAim = false; }
       if (god) player.hp = MAX_HP;
 
@@ -538,16 +545,24 @@ function frame(nowMs: number, lastMs: number) {
       }
 
       for (const g of gnomes) g.update(dt, arena);
-      pee.update(dt, forest, gnomes, (victim, shooter, kind) => {
+      pee.update(dt, forest, gnomes, (victim, shooter, mask) => {
         if (god && victim.isPlayer) return;
-        victim.hit(kind, shooter.dmg, shooter, arena.time);
+        victim.hit(mask, shooter.dmg, shooter, arena.time);
+        // napalm: the fire jumps to anybody standing close
+        if ((mask === 5 || mask === 7) && victim.burn > 0 && Math.random() < 0.04) {
+          for (const g of gnomes) {
+            if (g !== victim && g !== shooter && g.alive && Math.hypot(g.pos.x - victim.pos.x, g.pos.z - victim.pos.z) < 3.4) g.ignite(shooter);
+          }
+        }
       });
       potions.update(dt, nowMs / 1000, gnomes, (g, kind) => {
-        banter.sayLine(g, `${kind}:potion`);
+        const mixed = (g.mask & (g.mask - 1)) !== 0; // two or more potions at once
+        banter.sayLine(g, mixed ? 'mix:potion' : `${kind}:potion`);
         if (!g.isPlayer) sfx.grabAt(g.pos);
         if (g.isPlayer) {
           sfx.pop();
-          banner(PEE[kind].name.toUpperCase() + '!', PEE[kind].blurb, 1700);
+          if (mixed) banner('MIX! ' + MIX[g.mask].name.toUpperCase(), MIX[g.mask].blurb, 2600);
+          else banner(PEE[kind].name.toUpperCase() + '!', PEE[kind].blurb, 1700);
         }
       });
       bugs.update(dt, nowMs / 1000, arena.ringR, gnomes, state === 'play', (g, kind: BonusKind) => {
@@ -649,6 +664,7 @@ function frame(nowMs: number, lastMs: number) {
     camera.rotation.z = Math.sin(t * 0.9) * 0.05 * modAmt;
     camera.rotation.y += Math.sin(t * 0.6) * 0.03 * modAmt;
   } else camera.rotation.z = 0;
+  if (focus === player && player.dizzy > 0) camera.rotation.z += Math.sin(t * 5) * 0.14;
   camera.getWorldDirection(fwd);
   sfx.setListener(camera.position, fwd.x, fwd.y, fwd.z);
   for (const g of gnomes) g.billboard(camera);

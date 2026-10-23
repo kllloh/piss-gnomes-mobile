@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createGnome } from './gnome';
 import { lit } from './organic';
 import { HALF, type Forest } from './forest';
-import { RANGE, SPEED as DROP_SPEED, GRAVITY, PEE, type PeeKind, type PeeSystem } from './pee';
+import { RANGE, SPEED as DROP_SPEED, GRAVITY, MIX, KIND_BIT, type PeeSystem } from './pee';
 import type { Potions } from './potions';
 import type { Bugs } from './bugs';
 
@@ -126,8 +126,16 @@ export class Gnome {
   assistYaw: number | null = null;
   assistPitch: number | null = null;
 
-  /** A potion changes what you pee for a while. */
-  potion: { kind: PeeKind; t: number } | null = null;
+  /** Seconds left on each potion. Collect more than one and they mix. */
+  potions = { chili: 0, ice: 0, acid: 0 };
+  /** Dizzy from a Rainbow Cocktail: stumbling about and aiming wildly. */
+  dizzy = 0;
+  private acidMul = 1;
+
+  /** Which potions are active, as mix bits (1 chili, 2 ice, 4 acid). */
+  get mask(): number {
+    return (this.potions.chili > 0 ? KIND_BIT.chili : 0) | (this.potions.ice > 0 ? KIND_BIT.ice : 0) | (this.potions.acid > 0 ? KIND_BIT.acid : 0);
+  }
   /** Wizard Mode (from Nathaniel): seconds of being unhurtable. */
   wizard = 0;
   /** Bug bonuses: seconds of speed, bouncing, and a bladder that does not drain. */
@@ -238,7 +246,9 @@ export class Gnome {
     this.deathT = 0;
     this.lastHitBy = null;
     this.target = null;
-    this.potion = null;
+    this.potions.chili = this.potions.ice = this.potions.acid = 0;
+    this.dizzy = 0;
+    this.acidMul = 1;
     this.wizard = 0;
     this.speedT = this.bounceT = this.freeT = 0;
     this.vy = 0;
@@ -261,33 +271,47 @@ export class Gnome {
     this.syncVisual(0);
   }
 
-  /** A droplet of `kind` landed on this gnome. */
-  hit(kind: PeeKind, mul: number, from: Gnome, time: number) {
+  /** A droplet landed on this gnome. `mask` is the stream's potion mix (0 = plain pee). */
+  hit(mask: number, mul: number, from: Gnome, time: number) {
     if (!this.alive || this.wizard > 0) return;
     this.sinceHurt = 0;
     this.wet = 0.35;
     this.lastHitBy = from;
     this.lastHitAt = time;
-    const taken = (this.acid > 0 ? 1.25 : 1) * mul;
-    this.hp -= PEE[kind].dmg * taken;
-    if (kind === 'chili') {
+    let taken = (this.acid > 0 ? 1.25 : 1) * mul;
+    if (mask & 2 && mask & 4 && this.frozen > 0) taken *= 1.6; // cryo-acid shatters the frozen
+    if (mask === 3 || mask === 7) { if (this.burn > 0 && this.chill > 0.3) taken *= 2; } // thermal shock
+    this.hp -= MIX[mask].dmg * taken;
+    if (mask & 1) {
       if (this.burn <= 0) Gnome.onSay?.(this, 'burn');
-      this.burn = 3.2;
+      this.burn = mask & 4 ? 5 : 3.2;
       this.burnBy = from;
-    } else if (kind === 'acid') {
+    }
+    if (mask & 4) {
       if (this.acid <= 0) Gnome.onSay?.(this, 'melt');
       this.acid = 4.5;
       this.acidBy = from;
-    } else if (kind === 'ice' && this.frozen <= 0 && this.immune <= 0) {
+      this.acidMul = mask & 2 ? 2 : 1;
+    }
+    if (mask & 2 && this.frozen <= 0 && this.immune <= 0) {
       this.chill = Math.min(1, this.chill + 0.045);
       if (this.chill >= 1) {
         this.frozen = 2.2;
         Gnome.onSay?.(this, 'freeze');
       }
     }
+    if (mask === 7) this.dizzy = 3.5;
     Gnome.onHurt?.(this);
     if (this.hp <= 0) this.die(from, time);
     else Gnome.onSay?.(this, 'hit');
+  }
+
+  /** Napalm: set this gnome alight (from somebody else's fire). */
+  ignite(from: Gnome | null) {
+    if (!this.alive || this.wizard > 0) return;
+    if (this.burn <= 0) Gnome.onSay?.(this, 'burn');
+    this.burn = Math.max(this.burn, 3);
+    this.burnBy = from;
   }
 
   /** Burning and acid: quiet damage over time. */
@@ -405,7 +429,7 @@ export class Gnome {
       // nobody around: stroll between random spots
       this.wanderT -= dt;
       const bonus = A.bugs.nearestBonus(this.pos.x, this.pos.z, 22);
-      const pot = !this.potion ? A.potions.nearest(this.pos.x, this.pos.z, 26) : null;
+      const pot = this.mask !== 7 ? A.potions.nearest(this.pos.x, this.pos.z, 26, this.mask) : null;
       const goal = bonus ?? pot;
       if (goal) this.wander.set(goal.x, 0, goal.z);
       else if (this.wanderT <= 0 || Math.hypot(this.wander.x - this.pos.x, this.wander.z - this.pos.z) < 1.5) {
@@ -439,6 +463,14 @@ export class Gnome {
       this.stuckT = 0;
     }
     if (this.avoidT > 0) this.avoidT -= dt;
+    if (this.dizzy > 0) {
+      // a Rainbow Cocktail: wander drunkenly and spray in the wrong direction
+      this.mx = Math.sin(A.time * 3.1 + this.id) + this.mx * 0.3;
+      this.mz = Math.cos(A.time * 2.7 + this.id * 2) + this.mz * 0.3;
+      this.aimX = Math.sin(A.time * 2 + this.id);
+      this.aimZ = Math.cos(A.time * 2 + this.id);
+      this.hasAim = true;
+    }
     this.moveX = this.mx;
     this.moveZ = this.mz;
   }
@@ -468,11 +500,12 @@ export class Gnome {
     this.pos.y += this.vy * dt;
     if (this.pos.y < 0) { this.pos.y = 0; this.vy = 0; }
     if (this.burn > 0) { this.burn -= dt; this.dot(8 * dt, this.burnBy, A.time); if (this.wet > 0.2) this.burn = Math.min(this.burn, 0.4); }
-    if (this.acid > 0) { this.acid -= dt; this.dot(5 * dt, this.acidBy, A.time); }
+    if (this.acid > 0) { this.acid -= dt; this.dot(5 * this.acidMul * dt, this.acidBy, A.time); }
     if (this.frozen > 0) { this.frozen -= dt; if (this.frozen <= 0) { this.immune = 3; this.chill = 0; } }
     else this.chill = Math.max(0, this.chill - dt * 0.3);
     this.immune = Math.max(0, this.immune - dt);
-    if (this.potion && (this.potion.t -= dt) <= 0) this.potion = null;
+    for (const k of ['chili', 'ice', 'acid'] as const) if (this.potions[k] > 0) this.potions[k] = Math.max(0, this.potions[k] - dt);
+    this.dizzy = Math.max(0, this.dizzy - dt);
     this.regenerating = this.alive && this.sinceHurt > 4 && this.burn <= 0 && this.acid <= 0 && this.hp < MAX_HP && A.mod !== 'goth';
     if (this.regenerating) this.hp = Math.min(MAX_HP, this.hp + 7 * dt);
     if (this.hp < 25 && !this.saidLow) { this.saidLow = true; Gnome.onSay?.(this, 'lowhp'); }
@@ -529,7 +562,7 @@ export class Gnome {
       const cp = Math.cos(sp);
       const fx = Math.sin(sy);
       const fz = Math.cos(sy);
-      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.potion?.kind ?? 'normal', A.mod === 'disco' ? 1.3 : 1, A.mod === 'bogan' ? 2.2 : 1);
+      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.mask, A.mod === 'disco' ? 1.3 : 1, A.mod === 'bogan' ? 2.2 : 1);
       if (this.bladder <= 0) { this.bladder = 0; this.locked = true; this.peeing = false; Gnome.onSay?.(this, 'dry'); }
     } else {
       this.peeing = false;

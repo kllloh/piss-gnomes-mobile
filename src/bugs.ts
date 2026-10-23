@@ -110,7 +110,7 @@ function makeBug(shell: number): { root: THREE.Group; legs: THREE.Group[]; tail:
   box(tail, 0.45, 0.45, 0.45, 0, 0, 0, 0x6a4a2a);
   body.add(tail);
   root.add(body);
-  root.scale.setScalar(1.2);
+  root.scale.setScalar(0.6);
   return { root, legs, tail };
 }
 
@@ -209,11 +209,11 @@ export class Bugs {
         // the gas comes out halfway through
         if (!b.farted && b.farting < 0.6) {
           b.farted = true;
-          const tx = b.pos.x + Math.sin(b.yaw) * -1.2;
-          const tz = b.pos.z + Math.cos(b.yaw) * -1.2;
+          const tx = b.pos.x + Math.sin(b.yaw) * -0.8;
+          const tz = b.pos.z + Math.cos(b.yaw) * -0.8;
           for (let i = 0; i < 9; i++) this.puff(tx, 0.7, tz);
           if (active) {
-            const spot = { x: b.pos.x - Math.sin(b.yaw) * 1.8, z: b.pos.z - Math.cos(b.yaw) * 1.8 };
+            const spot = { x: b.pos.x - Math.sin(b.yaw) * 1.4, z: b.pos.z - Math.cos(b.yaw) * 1.4 };
             this.forest.collide(spot, 0.6);
             this.spawnBonus(spot.x, spot.z);
           }
@@ -256,7 +256,7 @@ export class Bugs {
         b.yaw += diff * Math.min(1, dt * 5);
         b.pos.x += (dx / d) * speed * dt;
         b.pos.z += (dz / d) * speed * dt;
-        this.forest.collide(b.pos, 0.5);
+        this.forest.collide(b.pos, 0.35);
         b.root.position.z = b.pos.z;
         b.root.position.x = b.pos.x;
       }
