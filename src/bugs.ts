@@ -14,7 +14,7 @@ export const BONUS_INFO: Record<BonusKind, { name: string; blurb: string; color:
 };
 const KINDS: BonusKind[] = ['speed', 'health', 'bounce', 'gulp'];
 
-const BUG_COUNT = 30;
+const BUG_COUNT = 48;
 const BONUS_LIFE = 16;
 const GRAB = 1.5;
 const PUFFS = 36;
@@ -301,7 +301,7 @@ export class Bugs {
         b.root.position.x = b.pos.x;
         if (active) b.fartIn -= dt;
         if (b.fartIn <= 0) {
-          b.fartIn = 8 + Math.random() * 7;
+          b.fartIn = 5 + Math.random() * 6;
           b.farting = 1.3;
           b.farted = false;
           speed = 0;

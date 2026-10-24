@@ -57,7 +57,6 @@ export const LINES: Record<string, string[]> = {
   ],
   'taunt:disco': ['Taste the DISCO rainbow!', 'Boogie in the puddle!', "Don't slip on the dance floor!", 'Shake it, wet it!'],
   'taunt:goth': ['Taste the void.', "Don't slip into the abyss.", 'Everything is damp. Everything.', 'Embrace the puddle.'],
-  'taunt:bogan': ['Taste the tinnie, mate!', "Don't slip on me thongs!", 'Chuck a wee, ya drongo!', 'Taste the rainbow, ya galah!'],
   'energy:bonus': ['WHITE MONSTER! Glug glug glug!', 'I can see through time!', 'INFINITE PEE! DOUBLE PEE!', 'My bladder has no bottom!', 'ENERGY! I AM ENERGY!', 'Is my heart supposed to do that?'],
   'speed:bonus': ['ZOOOOOM!', 'Gotta go fast!', 'My legs have opinions!', 'Nyoooom!', 'I AM THE WIND! DAMP WIND!'],
   'health:bonus': ['Ahhh, bug-fart vitamins!', 'I feel brand new! And smelly!', 'Healed by a bottom! Science!', 'Aaah, fresh!'],
@@ -103,11 +102,18 @@ export const LINES: Record<string, string[]> = {
   'hit:goth': ['It rains in my soul. And my pants.', 'Pain is just poetry.', 'Ugh. Whatever.', 'Eternal sorrow! And wetness!'],
   'death:goth': ['Finally. Sweet release.', 'Darkness takes me. Again.', 'Nobody understood me. Splash.', 'Tell my cat I was sad.', 'I was already dead inside. Now OUTSIDE.', 'Bury me in black socks.'],
   'kill:goth': ['Another soul, drowned in sorrow.', 'Cry about it.', 'Dark. Damp. Done.'],
-  // --- bogan mode ---
-  'idle:bogan': ['Chuck us a tinnie, mate!', 'Ya shoulda seen the one that got away.', 'Strewth, it\'s a ripper of a day!', 'She\'ll be right, mate!', 'Wanna go the Maccas run after this?', 'Yeah nah, yeah.', 'Hold my beer, I\'m peeing.', 'Bonza! BONZA!', 'Fair dinkum! A real stinker of a forest!', 'Can\'t see me mullet? That\'s cause it\'s INVISIBLE.'],
-  'hit:bogan': ['Ya cheeky mongrel!', 'Strewth, mate!', 'Me thongs! Me THONGS!', 'Oi! Me tinnie!', 'Yeah nah, that stung!'],
-  'death:bogan': ['Tell the missus I love her... and the ute!', 'Struth, I\'ve carked it!', 'Me mullet! Me MULLET!', 'See ya in the arvo!', 'Dead as a doornail, mate!', 'I\'m off to the great servo in the sky!', 'Not me thongs!'],
-  'kill:bogan': ['GOOD ON YA, MATE! ...I mean, bad.', 'Rack off!', 'Too easy, ya drongo!', 'That\'s ya lot, mate!'],
+  // --- turbo mode ---
+  'idle:turbo': ['TOO FAST! TOO FAST!', 'My legs are on fire! Not literally!', 'Zoom zoom zoom!', 'I cannot stop and I do not want to!', 'Gotta pee fast, gotta pee faster!', 'Blink and you missed me!', 'The scenery is a blur!'],
+  'hit:turbo': ['Ow, at speed!', 'Hit me and run!', 'That was FAST!', 'Whiplash!'],
+  'death:turbo': ['I was going too fast to live!', 'Zoooooo... splat.', 'My legs outran my body!', 'Speed kills! Me!'],
+  'kill:turbo': ['Too slow!', 'Gone before you knew!', 'Zoom! Splash! Bye!'],
+  'taunt:turbo': ['Taste the rainbow, you will not catch me!', "Don't slip, I am too fast for you!", 'Catch me if you can, damp one!'],
+  // --- inferno mode ---
+  'idle:inferno': ['EVERYTHING IS ON FIRE!', 'Why is my pee on fire?!', 'I can see Hell from here and it is damp.', 'Smells like burnt beard!', 'Chilli pee for everybody!', 'This is fine. This is FINE.', 'Hot hot hot HOT!'],
+  'hit:inferno': ['I AM ON FIRE!', 'Hot pee! HOT PEE!', 'My beard! MY BEARD!', 'Ahhh, toasty!'],
+  'death:inferno': ['I have been grilled!', 'Burnt to a crisp...', 'Extra crispy gnome, to go!', 'Tell them I was well done.', 'Flame-peed!'],
+  'kill:inferno': ['Flame-grilled!', 'Burn, baby, burn!', 'Smells like roasted gnome!'],
+  'taunt:inferno': ['Taste the fire rainbow!', "Don't slip on the lava, hehe!", 'Feel the burn, buttercup!'],
 };
 
 const BANNER_SUB: Record<Mod, string[]> = {
@@ -116,7 +122,8 @@ const BANNER_SUB: Record<Mod, string[]> = {
   slippery: ['Slip and slide! Everybody skids!', 'Wet floor! Very wet floor!', 'Ice everywhere! Steer carefully!'],
   disco: ['Everybody boogie! Pee faster, groove harder.', 'The glitter ball has arrived!', 'Disco inferno! Fast feet, fast flow!'],
   goth: ['Nothing matters. Health does not creep back.', 'Darkness descends. Hope is for the damp.', 'Eternal gloom. No healing allowed.'],
-  bogan: ['Chuck us a tinnie! Bladder lasts longer, aim goes wonky.', 'Cheers, mate! Drunk aim, big bladder!', 'Bogan hour! Ripper bladder, wobbly stream!'],
+  turbo: ['Everybody is FAST! Streams are quicker, bladders last longer!', 'TURBO! Zoom zoom zoom!', 'Speed rush! Run faster, pee quicker!'],
+  inferno: ['EVERY stream sets you on fire! Everybody burns!', 'Inferno! All pee is chilli pee!', 'The world is aflame! Burn or be burnt!'],
 };
 export function modTagline(m: Mod): string {
   const l = BANNER_SUB[m];

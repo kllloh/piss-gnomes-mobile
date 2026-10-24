@@ -14,11 +14,13 @@ import { Input } from './input';
 import { Sfx } from './audio';
 
 const TOTAL = 50; // gnomes in a match
-const MIST_WAIT = 50; // seconds before the mist starts to close
-const MIST_TIME = 330; // seconds it takes to close
+const MIST_WAIT = 35; // seconds before the mist starts to close
+const MIST_TIME = 270; // seconds it takes to close
 const MIST_START = 129; // the island is about 108 across from its middle
 const MIST_END = 8;
 const COUNTDOWN = 3.4;
+const MODE_EVERY = 20; // a new silly mode every 20 seconds
+const DROP_EVERY = 24; // and a drop of White Monsters about as often
 const WIZARD_TIME = 20;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -26,10 +28,10 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 // --- renderer, scene, camera -----------------------------------------------------------------------
 
 const canvas = $<HTMLCanvasElement>('game');
-// PlayStation-style vertex snapping: positions jump to a coarse screen grid, so edges shimmer and wobble a little
+// PlayStation-style vertex snapping: positions jump to a coarse screen grid, on a grid fine enough that edges stay steady
 THREE.ShaderChunk.project_vertex = THREE.ShaderChunk.project_vertex.replace(
   'gl_Position = projectionMatrix * mvPosition;',
-  'gl_Position = projectionMatrix * mvPosition;\n\tgl_Position.xy = floor(gl_Position.xy / gl_Position.w * vec2(212.0, 160.0) + 0.5) / vec2(212.0, 160.0) * gl_Position.w;',
+  'gl_Position = projectionMatrix * mvPosition;\n\tgl_Position.xy = floor(gl_Position.xy / gl_Position.w * vec2(720.0, 540.0) + 0.5) / vec2(720.0, 540.0) * gl_Position.w;',
 );
 
 // How hard to push this device: picked from the hardware, then adjusted while you play.
@@ -37,8 +39,8 @@ const quality = detectQuality();
 console.info(`[piss-gnomes] quality ${quality.tier} (${quality.why})`);
 // with the post pass on, anti-aliasing happens inside it, so the canvas itself does not need MSAA
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !quality.post, powerPreference: 'high-performance' });
-// the picture is rendered small on purpose (about 450 lines tall) and scaled up with hard pixels, like a 1998 console
-const RETRO_LINES = 450;
+// the picture is rendered small on purpose and scaled up with hard pixels, like a 1998 console; stronger devices get more lines, so it is clearer
+const RETRO_LINES = quality.tier === 'high' ? 640 : quality.tier === 'mid' ? 540 : 450;
 let ratioScale = 1;
 const retroRatio = () => Math.max(0.3, Math.min(window.devicePixelRatio || 1, RETRO_LINES / window.innerHeight));
 let pixelRatio = retroRatio();
@@ -50,8 +52,8 @@ canvas.addEventListener('webglcontextrestored', () => location.reload());
 const scene = new THREE.Scene();
 const BASE_HI = 1.9;
 const BASE_SI = 0.95;
-const FOG_NEAR = 10;
-const FOG_FAR = Math.round(quality.drawDist * 0.7); // thick night fog, like the old games
+const FOG_NEAR = 18;
+const FOG_FAR = Math.round(quality.drawDist * 0.85); // a light night fog: far things stay readable
 const fog = new THREE.Fog(0x0d121a, FOG_NEAR, FOG_FAR);
 scene.fog = fog;
 const hemi = new THREE.HemisphereLight(0xa0b0e0, 0x3a4046, BASE_HI);
@@ -252,8 +254,10 @@ function startMatch(at?: { x: number; z: number }) {
   state = 'countdown';
   paused = false;
   curMod = null;
+  pendingMod = null;
   modAmt = 0;
-  modNext = 30 + Math.random() * 10;
+  modNext = 6 + Math.random() * 4;
+  dropNext = 14 + Math.random() * 6;
   arena.mod = null;
   sfx.setMood('none');
   potions.reset();
@@ -315,6 +319,7 @@ function ordinal(n: number): string {
 function endMatch() {
   state = 'over';
   curMod = null;
+  pendingMod = null;
   arena.mod = null;
   sfx.setMood('none');
   const winner = aliveGnomes()[0] ?? null;
@@ -351,7 +356,7 @@ let mapOpen = false;
 function drawBigMap(spawnSel?: { x: number; z: number }) {
   const cv = $<HTMLCanvasElement>(spawnSel ? 'spawnCanvas' : 'bigmapCanvas');
   const portrait = window.innerWidth < window.innerHeight;
-  const S = Math.floor(spawnSel ? Math.min(window.innerHeight * 0.88, window.innerWidth * (portrait ? 0.92 : 0.56)) : Math.min(window.innerHeight * 0.86, window.innerWidth * 0.94));
+  const S = Math.floor(spawnSel ? Math.min(portrait ? window.innerHeight - 215 : window.innerHeight * 0.88, window.innerWidth * (portrait ? 0.92 : 0.56)) : Math.min(window.innerHeight * 0.86, window.innerWidth * 0.94));
   cv.width = cv.height = S;
   cv.style.width = cv.style.height = `${S}px`;
   const ctx = cv.getContext('2d')!;
@@ -634,7 +639,7 @@ const flareEls = {
   ghosts: [...document.querySelectorAll('#flare .ghost')] as HTMLElement[],
 };
 const SUN_CALM = new THREE.Vector3(0.35, 0.55, -0.75).normalize();
-const SUN_BOGAN = new THREE.Vector3(0.5, 0.1, -0.85).normalize();
+const SUN_LOW = new THREE.Vector3(0.5, 0.1, -0.85).normalize();
 const GHOST_AT = [0.35, 0.62, 1.0, 1.4, 1.85];
 const GHOST_OP = [0.85, 0.7, 0.8, 0.5, 0.6];
 const _fv = new THREE.Vector3();
@@ -650,7 +655,7 @@ function updateFlare(dt: number, t: number) {
     if (flareShown) { flareShown = false; flareEls.glow.style.opacity = flareEls.streak.style.opacity = '0'; flareEls.ghosts.forEach((g) => (g.style.opacity = '0')); }
     return;
   }
-  const dir = shownMod === 'bogan' && modAmt > 0.5 ? SUN_BOGAN : SUN_CALM;
+  const dir = shownMod === 'turbo' && modAmt > 0.5 ? SUN_LOW : SUN_CALM;
   _fv.copy(camera.position).addScaledVector(dir, 100).project(camera);
   const inFront = _fv.z < 1;
   const blocked = !inFront || forest.rayBlocked(camera.position.x, camera.position.y, camera.position.z, dir.x, dir.y, dir.z, 90);
@@ -683,14 +688,17 @@ function updateFlare(dt: number, t: number) {
 
 let hintsFaded = false;
 // silly modes
-const MOD_INDEX: Record<Mod, number> = { disco: 1, goth: 2, bogan: 3, upside: 4, moon: 5, slippery: 6 };
-const MOD_LABEL: Record<Mod, string> = { disco: 'DISCO', goth: 'GOTH', bogan: 'BOGAN', upside: 'UPSIDE DOWN', moon: 'MOON', slippery: 'SLIPPERY' };
+const MOD_INDEX: Record<Mod, number> = { disco: 1, goth: 2, turbo: 3, upside: 4, moon: 5, slippery: 6, inferno: 7 };
+const ALL_MODS: Mod[] = ['disco', 'goth', 'turbo', 'upside', 'moon', 'slippery', 'inferno'];
+const MOD_LABEL: Record<Mod, string> = { disco: 'DISCO', goth: 'GOTH', turbo: 'TURBO', upside: 'UPSIDE DOWN', moon: 'MOON', slippery: 'SLIPPERY', inferno: 'INFERNO' };
 let curMod: Mod | null = null;
 let shownMod: Mod = 'disco';
 let lastMod: Mod | null = null;
 let modAmt = 0;
 let modUntil = 0;
-let modNext = 14;
+let modNext = 8;
+let pendingMod: Mod | null = null;
+let dropNext = 20;
 let idleT = 4;
 let nathSeen = false;
 let psy = 0;
@@ -817,10 +825,6 @@ function playerControls(dt: number) {
     player.assistYaw = player.yaw + byaw * 0.7;
     player.assistPitch = player.pitch + (aimPitch(d, 0.15 + best.pos.y - player.pos.y, pee.gravity) - player.pitch) * 0.5;
   }
-  if (arena.mod === 'bogan' && modAmt > 0.3) {
-    // the tinnies are working: the stream wanders
-    player.assistYaw = (player.assistYaw ?? player.yaw) + Math.sin(arena.time * 1.9) * 0.1 + Math.sin(arena.time * 0.7) * 0.05;
-  }
   if (!hintsFaded && (input.moveX || input.moveF || input.fire)) {
     hintsFaded = true;
     $('hintL').style.opacity = $('hintR').style.opacity = '0';
@@ -861,7 +865,7 @@ function updateHud() {
   const chip = $('modchip');
   if (curMod && state === 'play') {
     chip.style.display = 'block';
-    chip.textContent = `${MOD_LABEL[curMod]} MODE ${fmt(Math.max(0, modUntil - arena.time))}`;
+    chip.textContent = `${MOD_LABEL[curMod]} MODE · NEXT ${Math.ceil(Math.max(0, modUntil - arena.time))}s`;
   } else chip.style.display = 'none';
   const mist = $('mist');
   if (!mistStarted) {
@@ -875,6 +879,18 @@ function updateHud() {
   }
   drawMinimap();
   updateLocation();
+}
+
+function startMode(m: Mod) {
+  pendingMod = null;
+  curMod = m;
+  shownMod = m;
+  arena.mod = m;
+  sfx.setMood(m);
+  banner(MOD_LABEL[m] + ' MODE!', modTagline(m), 3000);
+  feedLine(`<b>${MOD_LABEL[m]} MODE</b>`);
+  sfx.alarm();
+  for (const b of bots.filter((x) => x.alive).slice(0, 3)) banter.say(b, 'idle', m, true);
 }
 
 function frame(nowMs: number, lastMs: number) {
@@ -978,30 +994,29 @@ function frame(nowMs: number, lastMs: number) {
         // idle muttering from whoever is nearby, now and then
         idleT -= dt;
         if (idleT <= 0) {
-          idleT = 2.2 + Math.random() * 3;
+          idleT = 1.1 + Math.random() * 2;
           const near = bots.filter((b) => b.alive && Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z) < 30);
           if (near.length) banter.say(near[Math.floor(Math.random() * near.length)], Math.random() < 0.25 ? 'taunt' : 'idle', arena.mod);
           else if (player.alive && Math.random() < 0.12) banter.say(player, 'idle', arena.mod);
         }
-        // a random silly mode drops in every so often
-        if (curMod && arena.time > modUntil) {
-          feedLine('Back to normal... for now.');
-          curMod = null;
-          arena.mod = null;
-          sfx.setMood('none');
-          modNext = arena.time + 25 + Math.random() * 20;
-        } else if (!curMod && arena.time >= modNext) {
-          const pool = (['disco', 'goth', 'bogan', 'upside', 'moon', 'slippery'] as Mod[]).filter((m) => m !== lastMod);
-          curMod = pool[Math.floor(Math.random() * pool.length)];
-          lastMod = curMod;
-          shownMod = curMod;
-          arena.mod = curMod;
-          modUntil = arena.time + 45 + Math.random() * 15;
-          sfx.setMood(curMod);
-          banner(MOD_LABEL[curMod] + ' MODE!', modTagline(curMod), 3200);
-          feedLine(`<b>${MOD_LABEL[curMod]} MODE</b>`);
-          sfx.alarm();
-          for (const b of bots.filter((x) => x.alive).slice(0, 2)) banter.say(b, 'idle', curMod, true);
+        // a new silly mode every 20 seconds, one flowing into the next
+        if (arena.time >= modNext) {
+          const next = ALL_MODS.filter((m) => m !== lastMod)[Math.floor(Math.random() * (ALL_MODS.length - 1))];
+          lastMod = next;
+          modNext = arena.time + MODE_EVERY;
+          modUntil = modNext;
+          if (curMod) pendingMod = next; // fade the old one out first
+          else startMode(next);
+        }
+        // a drop of White Monsters, now and then
+        if (arena.time >= dropNext) {
+          dropNext = arena.time + DROP_EVERY * (0.7 + Math.random() * 0.6);
+          const n = potions.dropMonsters(player.pos.x, player.pos.z, 7);
+          if (n) {
+            banner('WHITE MONSTER DROP!', 'cans have landed all over the island', 2200);
+            feedLine('<b>WHITE MONSTER DROP</b>');
+            sfx.alarm();
+          }
         }
       }
 
@@ -1049,10 +1064,9 @@ function frame(nowMs: number, lastMs: number) {
     camera.position.set(focus.pos.x, EYE + focus.pos.y + bob + (focus.alive ? 0 : 0.4), focus.pos.z);
     camera.rotation.set(focus.alive ? (focus === player ? focus.pitch : -0.04) : -0.4, focus.yaw + Math.PI, 0);
   }
-  if (shownMod === 'bogan' && modAmt > 0.01) {
-    camera.rotation.z = Math.sin(t * 0.9) * 0.05 * modAmt;
-    camera.rotation.y += Math.sin(t * 0.6) * 0.03 * modAmt;
-  } else camera.rotation.z = 0;
+  camera.rotation.z = 0;
+  const wantFov = (window.innerWidth / window.innerHeight >= 1 ? 72 : 88) + (shownMod === 'turbo' ? 16 * modAmt : 0) + (state === 'play' && focus.energyT > 0 ? 6 : 0);
+  if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 6); camera.updateProjectionMatrix(); }
   if (shownMod === 'upside') camera.rotation.z += Math.PI * modAmt; // the whole world turns over
   if (focus === player && player.dizzy > 0) camera.rotation.z += Math.sin(t * 5) * 0.14;
   camera.getWorldDirection(fwd);
@@ -1077,15 +1091,17 @@ function frame(nowMs: number, lastMs: number) {
   forest.update(dt, t);
 
   // the silly modes: lights, colours, and tints on the gnomes
-  const target = curMod && state === 'play' ? 1 : 0;
-  modAmt += Math.max(-dt * 1.5, Math.min(dt * 1.5, target - modAmt));
+  const target = curMod && !pendingMod && state === 'play' ? 1 : 0;
+  if (pendingMod && modAmt < 0.04) startMode(pendingMod);
+  modAmt += Math.max(-dt * 3, Math.min(dt * 3, target - modAmt));
   trip.mode = MOD_INDEX[shownMod];
   trip.modeAmt = modAmt;
   if (modAmt > 0.001) {
     let sky = baseSky, ground = baseGround, sunC = baseSun, hi = BASE_HI, si = BASE_SI, near = FOG_NEAR, far = FOG_FAR;
     if (shownMod === 'disco') { sky = tmpA.setHSL((t * 0.15) % 1, 0.8, 0.6); sunC = tmpB.setHSL((t * 0.3 + 0.5) % 1, 0.9, 0.6); hi = 1.9; si = 1.2; }
     else if (shownMod === 'goth') { sky = tmpA.setHex(0x6a5a9a); ground = tmpB.setHex(0x120a1a); sunC = sunC.clone().setHex(0x9a7aff); hi = 0.6; si = 0.4; near = 6; far = 50; }
-    else if (shownMod === 'bogan') { sky = tmpA.setHex(0xffc890); ground = tmpB.setHex(0x6a4a20); sunC = sunC.clone().setHex(0xffa050); hi = 1.8; si = 1.3; }
+    else if (shownMod === 'turbo') { sky = tmpA.setHex(0xd8ff80); ground = tmpB.setHex(0x405818); sunC = sunC.clone().setHex(0xeaff60); hi = 1.9; si = 1.3; near = 14; far = FOG_FAR + 25; }
+    else if (shownMod === 'inferno') { sky = tmpA.setHex(0xff8050); ground = tmpB.setHex(0x601408); sunC = sunC.clone().setHex(0xff6a28); hi = 1.6; si = 1.4; near = 10; far = FOG_FAR - 6; }
     else if (shownMod === 'upside') { sky = tmpA.setHex(0xc090ff); ground = tmpB.setHex(0x7a3a60); sunC = sunC.clone().setHex(0xff9a6a); hi = 1.5; si = 0.8; near = 12; far = 75; }
     else if (shownMod === 'moon') { sky = tmpA.setHex(0xb0c0ff); ground = tmpB.setHex(0x505868); sunC = sunC.clone().setHex(0xffffff); hi = 0.9; si = 1.6; near = 60; far = FOG_FAR + 70; }
     else { sky = tmpA.setHex(0xd8f4ff); ground = tmpB.setHex(0x9ad0ff); sunC = sunC.clone().setHex(0xe8f8ff); hi = 1.95; si = 1.0; near = 30; far = FOG_FAR; }
@@ -1099,7 +1115,8 @@ function frame(nowMs: number, lastMs: number) {
     for (const g of gnomes) {
       if (shownMod === 'disco') { tmpA.setHSL((t * 0.2 + g.id * 0.1) % 1, 0.9, 0.6); g.setTint([1 + (tmpA.r * 1.4 - 1) * modAmt, 1 + (tmpA.g * 1.4 - 1) * modAmt, 1 + (tmpA.b * 1.4 - 1) * modAmt]); }
       else if (shownMod === 'goth') { const k = 1 - 0.78 * modAmt; g.setTint([k, k, k * 1.1]); }
-      else if (shownMod === 'bogan') g.setTint([1 + 0.2 * modAmt, 1 - 0.05 * modAmt, 1 - 0.35 * modAmt]);
+      else if (shownMod === 'turbo') g.setTint([1 - 0.1 * modAmt, 1 + 0.2 * modAmt, 1 - 0.3 * modAmt]);
+      else if (shownMod === 'inferno') g.setTint([1 + 0.5 * modAmt, 1 - 0.1 * modAmt, 1 - 0.45 * modAmt]);
       else if (shownMod === 'upside') g.setTint([1 + 0.1 * modAmt, 1 - 0.15 * modAmt, 1 + 0.25 * modAmt]);
       else if (shownMod === 'slippery') g.setTint([1 - 0.1 * modAmt, 1 + 0.05 * modAmt, 1 + 0.25 * modAmt]);
       else g.setTint(null);
@@ -1174,10 +1191,10 @@ function loop(now: number) {
     if (ratioScale > 0.61) setRatio(0.85);
     else if (trip.level > 0) trip.level--;
   }
-  if (ema < 15.5 && ratioScale < 0.99 && now - lastDown > 12000) fastMs += delta; else fastMs = 0;
+  if (ema < 15.5 && ratioScale < 0.99 && now - lastDown > 30000) fastMs += delta; else fastMs = 0;
   if (fastMs > 5000) { fastMs = 0; setRatio(1.12); }
 }
 requestAnimationFrame((t) => { last = t; lastDrawn = t; loop(t); });
 
 // a little handle for testing
-(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, quality, get pixelRatio() { return pixelRatio; }, mod: (m: Mod) => { curMod = m; lastMod = m; shownMod = m; arena.mod = m; modUntil = arena.time + 60; sfx.setMood(m); }, get state() { return state; } };
+(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, quality, get pixelRatio() { return pixelRatio; }, mod: (m: Mod) => { startMode(m); lastMod = m; modNext = arena.time + 600; modUntil = modNext; }, get state() { return state; } };

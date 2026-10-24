@@ -30,8 +30,8 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Health regenerates** once you have stayed out of trouble for 4 seconds (not while burning or melting).
 - **Psychedelic only when hurt:** the forest is a normal night until your health drops, then the sky swirls and the
   screen warps. Standing in the mist does it too.
-- **Random modes** drop in during a match: **Disco** (faster, stronger streams, rainbow lights), **Goth** (dark, no
-  health regeneration) and **Bogan** (bladder lasts longer, wobbly drunk aim, sunset haze). Each has its own music.
+- **Modes** change the rules, and a new one starts **every 20 seconds** (see Six modes below, now seven): **Disco** (faster, stronger streams, rainbow lights), **Goth** (dark, no
+  health regeneration), **Turbo** (everybody runs 1.5x and pees faster, wide-angle zoom blur) and **Inferno** (every stream is chilli pee, so everybody burns). Each has its own music.
 - **Banter:** every gnome shouts unhinged lines in speech bubbles, plus a death cry when they go down (spoken aloud with
   your device's speech voices; the sound button mutes them).
 - **Nathaniel:** a tall, dorky metalhead (glasses, skull band T-shirt, blue jeans) three gnomes high who wanders the forest
@@ -96,3 +96,12 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **White Monster:** a rare white energy drink can (about one pickup in six, with a green slash design of its own) gives **an endless bladder and a double stream for 20 seconds**. Bots go for them too.
 - **An icon for every power-up:** flame (Chili Wee), snowflake (Ice Wee), flask (Acid Pee), lightning bolt (Speed), medical cross (Health), spring (Bounce), cup (Big Gulp), wizard hat (Wizard Mode) and the white can (White Monster).
   The icons show in the pickup banners, on the active-effect pills, on the how-to chips and floating over every pickup in the world.
+
+## Chaos update
+- **Bogan mode is gone**, replaced by **Turbo** and **Inferno**. Modes now rotate every 20 seconds (the old one fades out, the next fades in), with the countdown in the chip under the mist timer.
+- **More White Monsters:** about a third of all pickups are cans, there are 100 pickups (was 60) that respawn after 10 s, and every ~24 s a **White Monster Drop** turns seven pickups into cans (half of them near you).
+- **More chaos:** 48 beetles that fart more often, the mist starts sooner and closes faster, 88% of bots hunt (was 60%) and hit a little harder, and bots chatter twice as often.
+- **Costumes:** every gnome gets its own mix: ten hat styles (cone, stub, wizard, top hat, beanie, mohawk, party hat, crown, traffic cone, miner's helmet), ten beard colours, trousers, boots, skin tones, shades / eyepatch / goggles, capes / backpacks / wings, scarves and tutus, plus a different height and width.
+- **No flicker:** removed the CSS scan-line sheet, the post-pass scan-lines, the beat strobes, the star twinkle and time-stepped sky glitter, the wobble in some modes, the glitch animation on titles, and the PlayStation vertex crawl (the snap grid is much finer now).
+- **Clearer picture:** more lines on stronger devices (640 high / 540 mid / 450 low, was 450), lighter fog, finer colour steps, less glow, less chromatic fringing and a lighter vignette.
+- **Start screen fits any phone:** the title, PLAY and how-to cards always fit one screen (cards scroll inside their box), in portrait and landscape, with safe-area padding and dynamic viewport height.

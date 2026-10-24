@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { createGnome } from './gnome';
+import { createGnome, randomCostume, costumeKey, type Costume } from './gnome';
 import { lit } from './organic';
 import { HALF, type Forest } from './forest';
 import { heightAt, waterDepth, DEEP, SEA } from './map';
@@ -37,7 +37,7 @@ export interface Arena {
   mod: Mod | null;
 }
 
-export type Mod = 'disco' | 'goth' | 'bogan' | 'upside' | 'moon' | 'slippery';
+export type Mod = 'disco' | 'goth' | 'turbo' | 'upside' | 'moon' | 'slippery' | 'inferno';
 export type Say = 'spot' | 'hit' | 'kill' | 'death' | 'burn' | 'freeze' | 'melt' | 'lowhp' | 'dry' | 'idle' | 'taunt';
 
 // --- cheap models: the gnome baked into three meshes (two legs and a body) ------------------------
@@ -74,11 +74,11 @@ interface LiteGeo {
 }
 const liteCache = new Map<string, LiteGeo>();
 
-function makeLite(shirt: number, hat: number) {
-  const key = `${shirt}-${hat}`;
+function makeLite(shirt: number, hat: number, cos: Costume) {
+  const key = `${shirt}-${hat}-${costumeKey(cos)}`;
   let g = liteCache.get(key);
   if (!g) {
-    const model = createGnome(shirt, hat);
+    const model = createGnome(shirt, hat, cos);
     const root = model.root;
     const legs: THREE.Group[] = [model.legL, model.legR];
     g = {
@@ -104,7 +104,7 @@ function makeLite(shirt: number, hat: number) {
   return { root, legL, legR, mat };
 }
 
-const SHIRTS = [0x3a4a6a, 0x3a5a3a, 0x5a3a3a, 0x6a5a3a, 0x4a3a5a, 0x2a4a5a];
+const SHIRTS = [0x3a4a6a, 0x3a5a3a, 0x5a3a3a, 0x6a5a3a, 0x4a3a5a, 0x2a4a5a, 0x8a3a6a, 0x2a7a7a, 0x9a6a2a, 0x6a2a2a, 0x3a3a8a, 0x5a7a2a, 0x7a7a7a, 0x1e1e2a];
 
 function angleDiff(a: number, b: number): number {
   let d = b - a;
@@ -234,7 +234,7 @@ export class Gnome {
   private botPitch = 0;
   private wasPee = false;
   /** Some bots go looking for a fight, some prefer to wander. */
-  private readonly hunting = Math.random() < 0.6;
+  private readonly hunting = Math.random() < 0.88;
 
   constructor(
     scene: THREE.Scene,
@@ -243,12 +243,13 @@ export class Gnome {
     readonly isPlayer: boolean,
     shirt = 0,
   ) {
-    const lite = makeLite(SHIRTS[shirt % SHIRTS.length], color);
+    const cos = randomCostume();
+    const lite = makeLite(SHIRTS[Math.floor(Math.random() * SHIRTS.length)], color, cos);
     this.root = lite.root;
     this.legL = lite.legL;
     this.legR = lite.legR;
     this.mat = lite.mat;
-    this.root.scale.setScalar(VISUAL_SCALE);
+    this.root.scale.set(VISUAL_SCALE * cos.chunk * cos.size, VISUAL_SCALE * cos.size, VISUAL_SCALE * cos.chunk * cos.size);
     this.root.rotation.order = 'YXZ';
     scene.add(this.root);
 
@@ -585,7 +586,7 @@ export class Gnome {
     const frozen = A.frozen || this.frozen > 0;
     const mlen = Math.hypot(this.moveX, this.moveZ);
     const scale = mlen > 1 ? 1 / mlen : 1;
-    const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : 1) * (this.speedT > 0 ? 1.55 : 1) * (this.wading > 1.2 ? 0.45 : this.wading > 0.25 ? 0.65 : 1);
+    const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : A.mod === 'turbo' ? 1.5 : 1) * (this.speedT > 0 ? 1.55 : 1) * (this.wading > 1.2 ? 0.45 : this.wading > 0.25 ? 0.65 : 1);
     const tx = frozen ? 0 : this.moveX * scale * speed;
     const tz = frozen ? 0 : this.moveZ * scale * speed;
     const k = 1 - Math.exp(-(A.mod === 'slippery' ? 2.2 : 14) * dt);
@@ -635,13 +636,13 @@ export class Gnome {
     // the stream
     if (this.wantPee && !this.locked && this.bladder > 0 && !frozen) {
       this.peeing = true;
-      this.bladder -= BLADDER_DRAIN * (A.mod === 'bogan' ? 0.35 : 1) * (this.freeT > 0 || this.energyT > 0 ? 0 : 1) * dt;
+      this.bladder -= BLADDER_DRAIN * (A.mod === 'turbo' ? 0.6 : 1) * (this.freeT > 0 || this.energyT > 0 ? 0 : 1) * dt;
       const sy = this.isPlayer ? this.assistYaw ?? this.yaw : this.yaw;
       const sp = this.isPlayer ? this.assistPitch ?? this.pitch : this.botPitch;
       const cp = Math.cos(sp);
       const fx = Math.sin(sy);
       const fz = Math.cos(sy);
-      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.mask, (A.mod === 'disco' ? 1.3 : 1) * (this.energyT > 0 ? 2 : 1), (A.mod === 'bogan' ? 2.2 : 1) * (this.energyT > 0 ? 1.4 : 1));
+      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.mask | (A.mod === 'inferno' ? 1 : 0), (A.mod === 'disco' ? 1.3 : A.mod === 'turbo' ? 1.5 : 1) * (this.energyT > 0 ? 2 : 1), (this.energyT > 0 ? 1.4 : 1));
       if (this.bladder <= 0) { this.bladder = 0; this.locked = true; this.peeing = false; Gnome.onSay?.(this, 'dry'); }
     } else {
       this.peeing = false;

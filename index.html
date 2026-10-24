@@ -25,8 +25,6 @@
   html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; touch-action: none; background: var(--bg); font-family: var(--mono); font-weight: 700; color: var(--txt); letter-spacing: .04em; user-select: none; -webkit-user-select: none; position: fixed; inset: 0; width: 100%; }
   canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
   button { font: inherit; color: inherit; cursor: pointer; }
-  /* a faint scan-line sheet over everything, like a cheap CRT */
-  body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 60; background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px); mix-blend-mode: multiply; }
   #flare { display: none; }
 
   /* ---- shared look: dark glass, neon corner brackets, glowing edge ---- */
@@ -88,9 +86,8 @@
   #blfill { background: repeating-linear-gradient(90deg, #fcee0a 0 6px, transparent 6px 8px); filter: drop-shadow(0 0 4px #fcee0a); }
   #bars.locked #blfill { background: repeating-linear-gradient(90deg, #ff7a1a 0 6px, transparent 6px 8px); }
   #bars small { display: block; font-size: 9px; letter-spacing: .3em; margin-top: 1px; text-align: center; color: var(--dim); }
-  #banner { position: absolute; left: 0; right: 0; top: 20%; text-align: center; font-family: var(--head); text-transform: uppercase; font-size: clamp(24px, 7.5vmin, 60px); letter-spacing: .1em; color: #fff; text-shadow: 0 0 8px #19f0ff, 0 0 22px #19f0ff, 3px 0 0 rgba(255,43,214,.85), -3px 0 0 rgba(25,240,255,.85); opacity: 0; transition: opacity .25s; padding: 0 10px; animation: glitch 4s infinite; }
+  #banner { position: absolute; left: 0; right: 0; top: 20%; text-align: center; font-family: var(--head); text-transform: uppercase; font-size: clamp(24px, 7.5vmin, 60px); letter-spacing: .1em; color: #fff; text-shadow: 0 0 8px #19f0ff, 0 0 22px #19f0ff, 3px 0 0 rgba(255,43,214,.85), -3px 0 0 rgba(25,240,255,.85); opacity: 0; transition: opacity .25s; padding: 0 10px; }
   #banner small { display: block; font-family: var(--mono); font-size: .3em; margin-top: 8px; letter-spacing: .18em; color: var(--y); text-shadow: 0 0 8px #fcee0a; }
-  @keyframes glitch { 0%, 92%, 100% { transform: none; } 93% { transform: translate(-3px, 1px) skewX(-4deg); } 95% { transform: translate(3px, -1px) skewX(4deg); } 97% { transform: translate(-2px, 0); } }
   #buttons { position: absolute; top: calc(clamp(84px, 17vmin, 124px) + 18px + var(--st)); right: calc(10px + var(--sr)); display: flex; gap: 8px; pointer-events: auto; }
   #buttons button { width: 46px; height: 46px; padding: 0; font-size: 16px; background: var(--brk-c), rgba(8,6,20,.9); border: 1px solid rgba(25,240,255,.4); border-radius: 0; color: var(--c); box-shadow: 0 0 10px rgba(25,240,255,.3); }
   #bubbles { position: fixed; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
@@ -121,7 +118,7 @@
       linear-gradient(180deg, #0a0418 0%, #1a0838 58%, #090315 100%); }
   #over, #pause { background: radial-gradient(circle at 50% 50%, rgba(255,43,214,.12), transparent 60%), repeating-linear-gradient(0deg, rgba(25,240,255,.06) 0 1px, transparent 1px 44px), rgba(3,1,8,.93); }
   .overlay.on { display: flex; }
-  .overlay h1 { font-family: 'Monoton', var(--head); font-weight: 400; font-size: clamp(34px, 10vmin, 78px); line-height: 1.05; margin: 0 0 6px; letter-spacing: .06em; color: var(--c); text-shadow: 0 0 10px #19f0ff, 0 0 28px rgba(25,240,255,.7), 3px 0 0 rgba(255,43,214,.8), -3px 0 0 rgba(25,240,255,.4); animation: glitch 6s infinite; }
+  .overlay h1 { font-family: 'Monoton', var(--head); font-weight: 400; font-size: clamp(34px, 10vmin, 78px); line-height: 1.05; margin: 0 0 6px; letter-spacing: .06em; color: var(--c); text-shadow: 0 0 10px #19f0ff, 0 0 28px rgba(25,240,255,.7), 3px 0 0 rgba(255,43,214,.8), -3px 0 0 rgba(25,240,255,.4);}
   .overlay h1 span:nth-child(odd) { color: #ff6af0; text-shadow: 0 0 10px #ff2bd6, 0 0 28px rgba(255,43,214,.7), 3px 0 0 rgba(25,240,255,.7); }
   .overlay .sub { font-family: var(--head); color: var(--y); letter-spacing: .4em; text-transform: uppercase; font-size: clamp(11px, 2.6vmin, 18px); margin-bottom: 14px; text-shadow: 0 0 8px rgba(252,238,10,.7); }
   .overlay p { margin: 4px 0; font-size: clamp(11px, 2.3vmin, 15px); line-height: 1.5; max-width: 560px; color: #9fb6dc; }
@@ -200,6 +197,43 @@
   #banner .ico { width: 1em; height: 1em; vertical-align: -.12em; margin-right: .15em; }
   .chip .ico { width: 1.5em; height: 1.5em; vertical-align: -.4em; margin: 0 .3em 0 -.4em; }
   .card h3 .ico { width: 1.4em; height: 1.4em; }
+
+  /* the start screen always fits the screen: the how-to cards scroll inside their own box instead of pushing the page */
+  .overlay { inset: auto; top: 0; left: 0; width: 100%; height: 100vh; height: 100dvh; }
+  #menu.on { overflow: hidden; padding-top: calc(8px + var(--st)); padding-bottom: calc(8px + var(--sb)); }
+  #menu::before, #menu::after { flex: 0 0 0; }
+  #menu .howto { flex: 1 1 0; min-height: 0; margin: 6px 0 0; display: flex; flex-direction: column; }
+  #menu .howto h2 { flex: 0 0 auto; margin-bottom: 4px; }
+  #menu .slider-wrap { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  #menu .slider { flex: 1 1 0; min-height: 0; }
+  #menu .slide { height: 100%; overflow-y: auto; touch-action: pan-x pan-y; scrollbar-width: none; justify-content: flex-start; }
+  #menu .slide::-webkit-scrollbar { display: none; }
+  #menu .card { flex: 1 0 auto; }
+  @media (pointer: coarse) { #menu .arrow { display: none; } #menu .slider-wrap { padding: 0; } }
+  #menu .arrow { width: 36px; height: 36px; }
+  #menu .more { margin: 0; }
+  #menu > .big { padding: 10px 40px; margin: 4px; flex: 0 0 auto; }
+  #menu > h1, #menu > .sub, #menu > p { flex: 0 0 auto; }
+  @media (max-aspect-ratio: 1/1) {
+    #menu > h1 { font-size: clamp(30px, 9.4vw, 62px); }
+    #menu > .sub { letter-spacing: .26em; margin-bottom: 6px; }
+    #menu > p { font-size: clamp(11px, 3.1vw, 14px); line-height: 1.4; margin: 2px 0; }
+    #menu .card { font-size: clamp(11px, 3.3vw, 14px); padding: 8px 12px 10px; }
+    #menu .slider-wrap { padding: 0 6px; }
+    #menu #slPrev { left: -2px; } #menu #slNext { right: -2px; }
+  }
+  @media (max-height: 640px) and (max-aspect-ratio: 1/1) {
+    #menu > p:not(.more) { display: none; }
+    #menu > h1 { font-size: clamp(26px, 8.4vw, 50px); }
+    #menu > .big { padding: 8px 34px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    #menu.on { grid-template-rows: repeat(5, auto); height: 100dvh; }
+    #menu > .howto { align-self: center; grid-row: 1 / span 5; height: calc(100dvh - 20px - var(--st) - var(--sb)); }
+    #spawn.on { gap: 12px; padding-left: calc(10px + var(--sl)); padding-right: calc(10px + var(--sr)); }
+    .sp-side h1 { font-size: clamp(18px, 6vmin, 30px); }
+    .sp-side p { display: none; }
+  }
 </style>
 </head>
 <body class="inmenu">
@@ -288,7 +322,7 @@
         </section>
         <section class="slide">
           <div class="card"><h3>7 &middot; MODES AND TIPS</h3>
-            <ul><li>Random modes change the rules: <b>Disco</b> (faster, stronger streams), <b>Goth</b> (dark, no healing), <b>Bogan</b> (big bladder, drunk aim), <b>Upside Down</b> (the world flips, and so do your controls), <b>Moon</b> (low gravity: huge jumps and streams that fly three times as far) and <b>Slippery</b> (you skid about like on ice).</li><li>Colourful dots on the minimap are bonuses. White is you.</li><li>The world only goes psychedelic when you are badly hurt.</li><li>Wear headphones: every sound comes from where it happens.</li></ul></div>
+            <ul><li>Modes change the rules: <b>Disco</b> (faster, stronger streams), <b>Goth</b> (dark, no healing), <b>Turbo</b> (everybody runs and pees faster), <b>Upside Down</b> (the world flips, and so do your controls), <b>Moon</b> (low gravity: huge jumps and streams that fly three times as far), <b>Slippery</b> (you skid about like on ice) and <b>Inferno</b> (every stream is chilli pee: everybody burns).</li><li><b>A new mode every 20 seconds</b>, and now and then a <b>White Monster drop</b> rains cans all over the island.</li><li>Colourful dots on the minimap are bonuses. White is you.</li><li>The world only goes psychedelic when you are badly hurt.</li><li>Wear headphones: every sound comes from where it happens.</li></ul></div>
         </section>
       </div>
       <button class="arrow" id="slNext" aria-label="Next">&#9654;</button>

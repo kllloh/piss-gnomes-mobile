@@ -183,14 +183,14 @@ export class Sfx {
   private lastBeat = -9;
   private delay!: DelayNode;
   /** Which silly mode the soundtrack is dressed up as. */
-  mood: 'none' | 'disco' | 'goth' | 'bogan' | 'upside' | 'moon' | 'slippery' = 'none';
+  mood: 'none' | 'disco' | 'goth' | 'turbo' | 'upside' | 'moon' | 'slippery' | 'inferno' = 'none';
 
   /** 0..1, jumps on each beat and fades: the visuals pulse with it. */
   get beat(): number {
     return this.ctx ? Math.exp(-(this.ctx.currentTime - this.lastBeat) * 5) : 0;
   }
 
-  setMood(m: 'none' | 'disco' | 'goth' | 'bogan' | 'upside' | 'moon' | 'slippery') {
+  setMood(m: 'none' | 'disco' | 'goth' | 'turbo' | 'upside' | 'moon' | 'slippery' | 'inferno') {
     this.mood = m;
   }
 
@@ -236,7 +236,7 @@ export class Sfx {
   private schedule() {
     if (!this.ctx) return;
     const SCALE = [0, 1, 4, 5, 7, 8, 10, 12, 13, 16, 17, 19];
-    const bpm = this.mood === 'disco' ? 122 : this.mood === 'goth' ? 78 : this.mood === 'bogan' ? 118 : this.mood === 'upside' ? 92 : this.mood === 'moon' ? 70 : this.mood === 'slippery' ? 132 : 108;
+    const bpm = this.mood === 'disco' ? 122 : this.mood === 'goth' ? 78 : this.mood === 'turbo' ? 156 : this.mood === 'inferno' ? 100 : this.mood === 'upside' ? 92 : this.mood === 'moon' ? 70 : this.mood === 'slippery' ? 132 : 108;
     const sixteenth = 60 / bpm / 4;
     while (this.nextStep < this.ctx.currentTime + 0.25) {
       const t = this.nextStep;
@@ -253,13 +253,24 @@ export class Sfx {
         this.step = (this.step + 1) % 224;
         continue;
       }
-      if (this.mood === 'bogan') {
-        // pub rock: fuzzy power chords and a stomp
-        if (s % 8 === 0 || s % 8 === 6) {
-          for (const iv of [0, 7, 12]) this.note(this.root + 12 + iv, t, 0.5, 'sawtooth', 0.09, 1500, false);
-          this.tone(130, 45, 0.14, 'sine', 0.3);
+      if (this.mood === 'turbo') {
+        // hardcore speed techno: a pounding kick, a driving saw bassline and a fast arpeggio
+        if (s % 4 === 0) this.tone(160, 40, 0.13, 'sine', 0.34);
+        if (s % 2 === 1) this.tone(8000, 6500, 0.03, 'square', 0.04);
+        this.note(this.root + (s % 8 < 4 ? 0 : 3), t, 0.1, 'sawtooth', 0.1, 1100, false);
+        if (s % 2 === 0) this.note(this.root + 24 + SCALE[(s * 5) % 7], t, 0.09, 'square', 0.05, 3600, true);
+        this.nextStep += sixteenth;
+        this.step = (this.step + 1) % 224;
+        continue;
+      }
+      if (this.mood === 'inferno') {
+        // doom: down-tuned power chords and a heavy double-kick
+        if (s % 8 === 0 || s % 8 === 3 || s % 8 === 6) {
+          for (const iv of [0, 7, 12]) this.note(this.root + iv, t, 0.42, 'sawtooth', 0.1, 900, false);
         }
-        if (s % 8 === 4) this.tone(200, 90, 0.1, 'square', 0.12);
+        if (s % 2 === 0) this.tone(120, 38, 0.1, 'sine', 0.3);
+        if (s % 8 === 4) this.tone(220, 80, 0.12, 'square', 0.12);
+        if (s % 32 === 0) this.note(this.root - 12, t, 3.2, 'sawtooth', 0.09, 300, true);
         this.nextStep += sixteenth;
         this.step = (this.step + 1) % 224;
         continue;

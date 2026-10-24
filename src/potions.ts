@@ -6,8 +6,9 @@ import { PEE, POTION_KINDS, type PeeKind } from './pee';
 import { iconTexture } from './icons';
 import type { Gnome } from './gnomes';
 
-const COUNT = 60;
-const RESPAWN = 25;
+const COUNT = 100;
+const RESPAWN = 10;
+const ENERGY_SHARE = 0.34; // about a third of all pickups are White Monsters
 const GRAB = 1.5;
 export const POTION_TIME = 25;
 /** How long a White Monster lasts: an endless bladder and a double stream. */
@@ -17,7 +18,7 @@ export const ENERGY_TIME = 20;
 export type PickupKind = PeeKind | 'energy';
 export const PICK_COLOR: Record<PickupKind, number> = { normal: PEE.normal.color, chili: PEE.chili.color, ice: PEE.ice.color, acid: PEE.acid.color, energy: 0xd8ffe8 };
 const BIT: Record<string, number> = { chili: 1, ice: 2, acid: 4, energy: 8 };
-const KINDS: PickupKind[] = ['chili', 'ice', 'acid', 'chili', 'ice', 'energy'];
+const KINDS: PickupKind[] = ['chili', 'energy', 'ice', 'energy', 'acid', 'chili', 'energy', 'ice', 'acid'];
 
 interface Item {
   x: number;
@@ -83,7 +84,7 @@ export class Potions {
     const taken: { x: number; z: number }[] = [];
     for (let attempt = 0; attempt < 4000 && this.items.length < COUNT; attempt++) {
       const p = forest.randomFree(HALF - 6);
-      if (taken.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 18)) continue;
+      if (taken.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 13)) continue;
       taken.push({ x: p.x, z: p.z });
       const kind = KINDS[this.items.length % KINDS.length];
       const group = new THREE.Group();
@@ -102,8 +103,29 @@ export class Potions {
     }
   }
 
+  private setKind(it: Item, kind: PickupKind) {
+    it.kind = kind;
+    it.bottle.geometry = this.geos.get(kind)!;
+    (it.beam.material as THREE.MeshBasicMaterial).color.setHex(PICK_COLOR[kind]);
+    (it.icon.material as THREE.SpriteMaterial).map = iconTexture(kind as never);
+  }
+
+  /** A shower of White Monsters: turn `n` pickups into cans (half of them near `x,z`), wherever they were. Returns how many. */
+  dropMonsters(x: number, z: number, n: number): number {
+    const order = this.items.slice().sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z));
+    const near = order.slice(0, 24).sort(() => Math.random() - 0.5).slice(0, Math.ceil(n / 2));
+    const far = order.slice(24).sort(() => Math.random() - 0.5).slice(0, Math.floor(n / 2));
+    for (const it of [...near, ...far]) {
+      this.setKind(it, 'energy');
+      it.alive = true;
+      it.wait = 0;
+      it.group.visible = true;
+    }
+    return near.length + far.length;
+  }
+
   reset() {
-    for (const it of this.items) { it.alive = true; it.wait = 0; it.group.visible = true; }
+    for (const it of this.items) { it.alive = true; it.wait = 0; it.group.visible = true; this.setKind(it, KINDS[this.items.indexOf(it) % KINDS.length]); }
   }
 
   /** The closest pickup (that is still there) within `maxD`, or null. `held` has a bit set for each kind you already have. */
@@ -124,10 +146,7 @@ export class Potions {
         it.wait -= dt;
         if (it.wait <= 0) {
           it.alive = true;
-          it.kind = Math.random() < 0.14 ? 'energy' : POTION_KINDS[Math.floor(Math.random() * POTION_KINDS.length)];
-          it.bottle.geometry = this.geos.get(it.kind)!;
-          (it.beam.material as THREE.MeshBasicMaterial).color.setHex(PICK_COLOR[it.kind]);
-          (it.icon.material as THREE.SpriteMaterial).map = iconTexture(it.kind as never);
+          this.setKind(it, Math.random() < ENERGY_SHARE ? 'energy' : POTION_KINDS[Math.floor(Math.random() * POTION_KINDS.length)]);
           it.group.visible = true;
         }
         continue;
