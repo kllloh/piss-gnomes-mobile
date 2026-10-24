@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SoftBox, lit, makePaintTexture } from './organic';
-import { heightAt, SEA, landNear, groundColor, POIS, ACID_POOLS, K } from './map';
+import { heightAt, SEA, landNear, groundColor, POIS, ACID_POOLS, K, THEME, THEME_ID } from './map';
+import { buildBiome } from './biomes';
 
 /** Half the side of the (small, square) forest. */
 export const HALF = 90;
@@ -111,7 +112,7 @@ export class Forest {
   private grid: Solid[][];
   private waterTex: THREE.CanvasTexture | null = null;
   private signs: THREE.Sprite[] = [];
-  private flies: THREE.InstancedMesh;
+  private flies!: THREE.InstancedMesh;
   private flyBase: { x: number; y: number; z: number; p: number }[] = [];
 
   constructor() {
@@ -170,7 +171,7 @@ export class Forest {
     const rip = makePaintTexture(205, 32, true);
     rip.repeat.set(150, 150);
     this.waterTex = rip;
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), lit({ color: 0x20475a, map: rip, transparent: true, opacity: 0.86, depthWrite: false }));
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), lit({ color: THEME.water, map: rip, transparent: true, opacity: 0.86, depthWrite: false }));
     water.position.y = SEA;
     water.renderOrder = 1;
     this.group.add(water);
@@ -179,6 +180,14 @@ export class Forest {
       pool.position.set(p.x, SEA + 0.06, p.z);
       pool.renderOrder = 2;
       this.group.add(pool);
+    }
+
+    if (THEME_ID !== 'forest') {
+      // the ice and desert maps have their own plants, rocks and landmarks
+      buildBiome(this, HALF, AREA);
+      this.addFlies();
+      this.addSigns();
+      return;
     }
 
     // flowers and soft patches on the grass
@@ -305,9 +314,14 @@ export class Forest {
 
     this.buildPlaces(between);
 
+    this.addFlies();
+    this.addSigns();
+  }
+
+  private addFlies() {
     // --- fireflies ------------------------------------------------------------------------------
     const flyN = Math.round(350 * AREA);
-    this.flies = instanced(new SoftBox(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xc8d870 }), flyN);
+    this.flies = instanced(new SoftBox(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: THEME_ID === 'ice' ? 0xe8f6ff : THEME_ID === 'desert' ? 0xe8c070 : 0xc8d870 }), flyN);
     for (let i = 0; i < flyN; i++) {
       const x = between(-HALF, HALF);
       const z = between(-HALF, HALF);
@@ -315,6 +329,9 @@ export class Forest {
     }
     this.group.add(this.flies);
 
+  }
+
+  private addSigns() {
     // --- name signs floating over every place ----------------------------------------------------------
     POIS.forEach((p, i) => {
       const sign = makeSign(p.name, i % 2 ? '#2af0ff' : '#ff3ad8');
@@ -579,11 +596,11 @@ export class Forest {
     for (let cz = this.ci(z0); cz <= this.ci(z1); cz++) for (let cx = this.ci(x0); cx <= this.ci(x1); cx++) this.grid[cz * this.nx + cx].push(s);
   }
 
-  private addCircle(x: number, z: number, r: number, h: number) {
+  addCircle(x: number, z: number, r: number, h: number) {
     this.register({ rect: false, a: x, b: z, c: r, d: 0, h }, x - r, z - r, x + r, z + r);
   }
 
-  private addRect(x0: number, z0: number, x1: number, z1: number, h: number) {
+  addRect(x0: number, z0: number, x1: number, z1: number, h: number) {
     this.register({ rect: true, a: x0, b: z0, c: x1, d: z1, h }, x0, z0, x1, z1);
   }
 

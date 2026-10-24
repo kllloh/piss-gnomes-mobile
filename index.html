@@ -214,6 +214,11 @@
   #menu .more { margin: 0; }
   #menu > .big { padding: 10px 40px; margin: 4px; flex: 0 0 auto; }
   #menu > h1, #menu > .sub, #menu > p { flex: 0 0 auto; }
+  .maps { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 4px; flex: 0 0 auto; flex-wrap: wrap; }
+  .maps span { font-family: var(--head); font-size: clamp(10px, 2.2vmin, 13px); letter-spacing: .3em; color: var(--dim); margin-right: 4px; }
+  .maps button { padding: 7px 14px; border: 1px solid rgba(25,240,255,.45); background: rgba(8,6,20,.85); color: var(--c); font-family: var(--head); font-size: clamp(10px, 2.3vmin, 13px); letter-spacing: .18em; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .maps button.on { background: var(--m); color: #05030a; border-color: var(--m); box-shadow: 0 0 12px rgba(255,43,214,.7); }
+  @media (orientation: landscape) and (max-height: 520px) { #menu > .maps { grid-column: 1; } }
   @media (max-aspect-ratio: 1/1) {
     #menu > h1 { font-size: clamp(30px, 9.4vw, 62px); }
     #menu > .sub { letter-spacing: .26em; margin-bottom: 6px; }
@@ -277,8 +282,9 @@
 <div class="overlay on" id="menu">
   <h1><span>P</span><span>I</span><span>S</span><span>S</span> <span>G</span><span>N</span><span>O</span><span>M</span><span>E</span><span>S</span></h1>
   <div class="sub">Last gnome standing</div>
-  <p>Twenty gnomes. One small neon-lit mushroom island. Soak a gnome and they join your team. Pee is your only weapon, and the mist is closing in.</p>
+  <p>Twenty gnomes. One small neon-lit island: forest, ice or desert. Soak a gnome and they join your team. Pee is your only weapon, and the mist is closing in.</p>
   <button class="big" id="btnPlay">PLAY</button>
+  <div class="maps" id="maps"><span>MAP</span><button data-map="forest">FOREST</button><button data-map="ice">ICE</button><button data-map="desert">DESERT</button></div>
   <p class="more">swipe the cards below for how to play</p>
 
   <div class="howto">

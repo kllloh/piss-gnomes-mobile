@@ -115,3 +115,10 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **The first time you are soaked you go to the gulag:** a neon arena floating 70 units above the island. You wait for a 1v1 against the next gnome to be soaked, or against the **Gulag Guard** if nobody else is waiting (you always go next, ahead of the bots). The camera shows the current fight while you wait.
 - **Win** and you drop back onto the island at a random spot with full health. **Lose** and whoever soaked you takes you onto their team (if it has room), otherwise you are out. A drawn fight is decided on health after 25 s. Soaked a second time, or caught by the mist, there is no gulag.
 - Gulag fighters are on separate sides even if they are teammates, cannot pick anything up, and are not hurt by the mist. Fighters in the gulag count as still in the match, so the game only ends when the gulag is empty.
+
+## Maps
+- **Three maps**, picked with the MAP buttons on the start screen (the page reloads with the choice, which is remembered; `?map=ice` or `?map=desert` also works).
+- **Forest:** the original mushroom island.
+- **Ice:** a polar night with auroras. Snowy pines, glowing ice crystals, a frozen lake and river that are **slippery** to walk on, and twelve places: Pee-cicle Peak, Frozen Lake Wee-ter (a rink with goals), Igloo Village, Snowman Square, Yellow Snow Lodge, Ice Wee Castle, Slush Pond, Brr-muda Cave, Penguin Point, Glacier Gulch, Blizzard Bay (lighthouse) and the Frozen Fountain.
+- **Desert:** a dusky orange sky, rolling dunes, saguaro cacti, a red-rock mesa plateau, an oasis with palms, a dry riverbed and twelve places: Pee-ramid, Tinkle Bazaar, Oasis Wee-sis, Cactus Gulch, Mesa Wee-sa, Bone Yard, Pump Jack Plains, Camel Camp, Scorpion Pit, Sphinx of Pee, Sandstorm Bay and Dry Wee-ver.
+- Everything else (teams, the gulag, modes, potions, White Monsters) works on every map.

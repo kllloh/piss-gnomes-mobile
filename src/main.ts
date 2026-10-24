@@ -8,7 +8,7 @@ import { Banter, modTagline } from './talk';
 import { Nathaniel } from './nathaniel';
 import { Bugs, BONUS_INFO, type BonusKind } from './bugs';
 import { detectQuality } from './quality';
-import { heightAt, surfaceAt, poiAt, renderTerrainImage, POIS, SEA, landNear } from './map';
+import { heightAt, surfaceAt, poiAt, renderTerrainImage, POIS, SEA, landNear, THEME, THEME_ID } from './map';
 import { Trip } from './trip';
 import { PeeSystem, RANGE, PEE, MIX, KIND_BIT } from './pee';
 import { Input } from './input';
@@ -44,21 +44,23 @@ canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
 canvas.addEventListener('webglcontextrestored', () => location.reload());
 
 const scene = new THREE.Scene();
-const BASE_HI = 1.9;
-const BASE_SI = 0.95;
+const BASE_HI = THEME.hi;
+const BASE_SI = THEME.si;
 const FOG_NEAR = 18;
 const FOG_FAR = Math.round(quality.drawDist * 0.85); // a light night fog: far things stay readable
 const fog = new THREE.Fog(0x0d121a, FOG_NEAR, FOG_FAR);
 scene.fog = fog;
-const hemi = new THREE.HemisphereLight(0xa0b0e0, 0x3a4046, BASE_HI);
+const hemi = new THREE.HemisphereLight(THEME.sky, THEME.ground, BASE_HI);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xa8d0ff, BASE_SI); // the moon, a little cold and electric
+const sun = new THREE.DirectionalLight(THEME.sun, BASE_SI); // the moon, a little cold and electric
 sun.position.set(-0.4, 1, 0.5);
 scene.add(sun);
 
 const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 160);
 camera.rotation.order = 'YXZ';
 const trip = new Trip(renderer, scene, quality);
+trip.theme = THEME.idx;
+trip.fogCalm = THEME.fog as [number, number, number];
 trip.setPlanes(camera.near, camera.far);
 
 function fit() {
@@ -560,7 +562,7 @@ function openSpawn() {
   document.body.classList.add('inmenu');
   $('spawn').classList.add('on');
   input.release();
-  if (!spawnPick.x && !spawnPick.z) { const st = POIS.find((p) => p.kind === 'stones')!; spawnPick = { x: st.x, z: st.z }; }
+  if (!spawnPick.x && !spawnPick.z) { const st = landNear(0, 0, 0.8); spawnPick = { x: st.x, z: st.z }; }
   drawSpawn();
 }
 $('spawnCanvas').addEventListener('pointerup', (e) => {
@@ -615,6 +617,19 @@ function updateLocation() {
 
 // icons in the how-to chips and headings
 document.querySelectorAll<HTMLElement>('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', iconImg(el.dataset.icon as IconKind)));
+
+// the map picker: the page is reloaded with the chosen map, so the whole island is built for it
+document.querySelectorAll<HTMLButtonElement>('#maps button').forEach((b) => {
+  b.classList.toggle('on', b.dataset.map === THEME_ID);
+  b.addEventListener('click', () => {
+    const id = b.dataset.map as string;
+    if (id === THEME_ID) return;
+    try { localStorage.setItem('pg-map', id); } catch { /* no storage */ }
+    const u = new URL(location.href);
+    u.searchParams.delete('map');
+    location.replace(u.toString());
+  });
+});
 
 // --- the how-to-play slider on the start screen ------------------------------------------------------------
 
@@ -773,9 +788,9 @@ let idleT = 4;
 let nathSeen = false;
 let psy = 0;
 let tinted = false;
-const baseSky = new THREE.Color(0xa0b0e0);
-const baseGround = new THREE.Color(0x3a4046);
-const baseSun = new THREE.Color(0xa8d0ff);
+const baseSky = new THREE.Color(THEME.sky);
+const baseGround = new THREE.Color(THEME.ground);
+const baseSun = new THREE.Color(THEME.sun);
 const tmpA = new THREE.Color();
 const tmpB = new THREE.Color();
 const landing = { x: 0, z: 0 };

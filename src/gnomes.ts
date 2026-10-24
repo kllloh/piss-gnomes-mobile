@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createGnome, randomCostume, costumeKey, type Costume } from './gnome';
 import { lit } from './organic';
 import { HALF, type Forest } from './forest';
-import { heightAt, waterDepth, DEEP, SEA } from './map';
+import { heightAt, waterDepth, DEEP, SEA, iceAt } from './map';
 import { RANGE, SPEED as DROP_SPEED, GRAVITY, MIX, KIND_BIT, type PeeSystem } from './pee';
 import type { Potions } from './potions';
 import type { Bugs } from './bugs';
@@ -685,7 +685,7 @@ export class Gnome {
     const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : A.mod === 'turbo' ? 1.5 : 1) * (this.speedT > 0 ? 1.55 : 1) * (this.wading > 1.2 ? 0.45 : this.wading > 0.25 ? 0.65 : 1);
     const tx = frozen ? 0 : this.moveX * scale * speed;
     const tz = frozen ? 0 : this.moveZ * scale * speed;
-    const k = 1 - Math.exp(-(A.mod === 'slippery' ? 2.2 : 14) * dt);
+    const k = 1 - Math.exp(-(A.mod === 'slippery' || (this.gulag !== 2 && iceAt(this.pos.x, this.pos.z)) ? 2.2 : 14) * dt);
     this.vel.x += (tx - this.vel.x) * k;
     this.vel.z += (tz - this.vel.z) * k;
     const prevX = this.pos.x;

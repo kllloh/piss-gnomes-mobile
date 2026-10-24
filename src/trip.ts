@@ -23,6 +23,7 @@ uniform float time;
 uniform float psy;
 uniform float mode;
 uniform float modeAmt;
+uniform float theme;
 varying vec3 vDir;
 float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 void main() {
@@ -48,8 +49,19 @@ void main() {
   // the calm night sky you start with: the swirl only comes in as you get hurt
   // a dark, cold night with a pale moon, thin cloud and a few stars
   vec3 calm = mix(vec3(0.075, 0.095, 0.15), vec3(0.012, 0.018, 0.045), smoothstep(-0.05, 0.8, d.y));
+  if (theme > 0.5 && theme < 1.5) {
+    // ice: a deep teal polar night with green and violet auroras
+    calm = mix(vec3(0.1, 0.17, 0.26), vec3(0.015, 0.04, 0.11), smoothstep(-0.05, 0.8, d.y));
+    float au = smoothstep(0.35, 1.0, sin(d.x * 3.0 + sin(d.z * 2.2 + time * 0.12) * 1.6 + d.y * 5.0 + time * 0.08));
+    calm += vec3(0.1, 0.9, 0.55) * au * 0.5 * smoothstep(0.08, 0.5, d.y);
+    calm += vec3(0.55, 0.2, 0.95) * smoothstep(0.5, 1.0, sin(d.x * 2.0 + d.y * 7.0 - time * 0.06)) * 0.28 * smoothstep(0.2, 0.7, d.y);
+  } else if (theme > 1.5) {
+    // desert: a dusky orange horizon fading up to violet
+    calm = mix(vec3(0.85, 0.38, 0.14), vec3(0.14, 0.06, 0.26), smoothstep(-0.05, 0.75, d.y));
+  }
   vec3 sn = normalize(vec3(0.35, 0.55, -0.75));
   float sdd = acos(clamp(dot(d, sn), -1.0, 1.0));
+  if (theme > 1.5) calm += vec3(1.0, 0.5, 0.15) * smoothstep(0.9, 0.05, sdd) * 0.35;
   calm += vec3(0.85, 0.9, 1.0) * smoothstep(0.075, 0.065, sdd) + vec3(0.3, 0.4, 0.62) * smoothstep(0.55, 0.06, sdd) * 0.2;
   float cl = 0.5 + 0.5 * sin(d.x * 5.0 + time * 0.03 + sin(d.z * 4.0) * 1.6) * sin(d.z * 6.0 - time * 0.02 + sin(d.x * 3.0)) + d.y * 0.5;
   cl = smoothstep(0.6, 0.85, cl) * smoothstep(0.05, 0.3, d.y) * smoothstep(0.98, 0.6, d.y);
@@ -272,6 +284,9 @@ export class Trip {
   /** A silly mode: 1 disco, 2 goth, 3 turbo, 4 upside down, 5 moon, 6 slippery, 7 inferno, with how strongly it is on (0..1). */
   mode = 1;
   modeAmt = 0;
+  /** 0 forest, 1 ice, 2 desert. */
+  theme = 0;
+  fogCalm: [number, number, number] = [0.05, 0.065, 0.1];
 
   constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, private q: Quality) {
     this.level = q.post ? 2 : 0;
@@ -279,7 +294,7 @@ export class Trip {
     this.sky = new THREE.Mesh(
       new THREE.SphereGeometry(90, 32, 16),
       new THREE.ShaderMaterial({
-        uniforms: { time: { value: 0 }, psy: { value: 0 }, mode: { value: 0 }, modeAmt: { value: 0 } },
+        uniforms: { time: { value: 0 }, psy: { value: 0 }, mode: { value: 0 }, modeAmt: { value: 0 }, theme: { value: 0 } },
         vertexShader: SKY_VERT,
         fragmentShader: SKY_FRAG,
         side: THREE.BackSide,
@@ -336,7 +351,7 @@ export class Trip {
   /** Match the fog to the horizon colour of the sky so distance fades into the swirl. */
   horizon(t: number, out: THREE.Color): THREE.Color {
     palette(t * 0.03, out).multiplyScalar(0.22);
-    out.lerp(this.tmpC.setRGB(0.05, 0.065, 0.1), 1 - this.psy); // calm: a dark misty night
+    out.lerp(this.tmpC.setRGB(this.fogCalm[0], this.fogCalm[1], this.fogCalm[2]), 1 - this.psy); // calm: this map's misty night
     if (this.modeAmt > 0.001) {
       const m = this.mode < 1.5 ? palette(t * 0.12, this.tmpC).multiplyScalar(0.45) : this.mode < 2.5 ? this.tmpC.setRGB(0.04, 0.0, 0.03) : this.mode < 3.5 ? this.tmpC.setRGB(0.22, 0.34, 0.05) : this.mode < 4.5 ? this.tmpC.setRGB(0.45, 0.2, 0.5) : this.mode < 5.5 ? this.tmpC.setRGB(0.02, 0.02, 0.06) : this.mode < 6.5 ? this.tmpC.setRGB(0.8, 0.93, 1.0) : this.tmpC.setRGB(0.42, 0.07, 0.02);
       out.lerp(m, this.modeAmt);
@@ -350,6 +365,7 @@ export class Trip {
     su.psy.value = this.psy;
     su.mode.value = this.mode;
     su.modeAmt.value = this.modeAmt;
+    su.theme.value = this.theme;
     this.sky.position.copy(camPos);
     // spores drift in a box that follows the camera
     const N = this.spores.count;
