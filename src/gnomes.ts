@@ -39,6 +39,8 @@ export interface Arena {
 
 export type Mod = 'disco' | 'goth' | 'turbo' | 'upside' | 'moon' | 'slippery' | 'inferno';
 export const TEAM_MAX = 5;
+/** The gulag: a floating arena where a soaked gnome fights one-on-one for a way back. */
+export const GULAG = { x: 0, z: 0, y: 70, r: 12 };
 export type Say = 'join' | 'spot' | 'hit' | 'kill' | 'death' | 'burn' | 'freeze' | 'melt' | 'lowhp' | 'dry' | 'idle' | 'taunt';
 
 // --- cheap models: the gnome baked into three meshes (two legs and a body) ------------------------
@@ -140,6 +142,18 @@ export class Gnome {
   /** Which team this gnome is on. Soak somebody and they join yours (up to five). */
   team = 0;
   teamHex = 0xffffff;
+  /** 0 on the island, 1 waiting for the gulag, 2 fighting in it. */
+  gulag: 0 | 1 | 2 = 0;
+  gulagUsed = false;
+  gulagKiller: Gnome | null = null;
+  /** The gulag guard: fights a lone gnome who has nobody to face. */
+  guard = false;
+  static onGulag: ((g: Gnome, killer: Gnome) => void) | null = null;
+  static onGulagLost: ((g: Gnome, killer: Gnome | null) => void) | null = null;
+  /** True when two gnomes are on the same side (never in the gulag, where everybody fights). */
+  static allies(a: Gnome, b: Gnome): boolean {
+    return a !== b && a.team === b.team && a.gulag !== 2 && b.gulag !== 2;
+  }
   static roster: Gnome[] = [];
   static onJoin: ((g: Gnome, to: Gnome) => void) | null = null;
   static teamSize(team: number): number {
@@ -332,7 +346,7 @@ export class Gnome {
 
   /** A droplet landed on this gnome. `mask` is the stream's potion mix (0 = plain pee). */
   hit(mask: number, mul: number, from: Gnome, time: number) {
-    if (from !== this && from.team === this.team) return; // no friendly fire
+    if (Gnome.allies(from, this)) return; // no friendly fire
     if (!this.alive || this.wizard > 0 || this.landShield > 0) return;
     this.sinceHurt = 0;
     this.wet = 0.35;
@@ -369,7 +383,7 @@ export class Gnome {
   /** Napalm: set this gnome alight (from somebody else's fire). */
   ignite(from: Gnome | null) {
     if (!this.alive || this.wizard > 0) return;
-    if (from && from !== this && from.team === this.team) return;
+    if (from && Gnome.allies(from, this)) return;
     if (this.burn <= 0) Gnome.onSay?.(this, 'burn');
     this.burn = Math.max(this.burn, 3);
     this.burnBy = from;
@@ -409,7 +423,50 @@ export class Gnome {
     Gnome.onJoin?.(this, killer);
   }
 
+  /** Take this gnome off the board: it flops over and is gone. */
+  private fall(time: number) {
+    this.hp = 0;
+    this.alive = false;
+    this.diedAt = time;
+    this.deathT = 0;
+    this.peeing = this.wantPee = false;
+    this.burn = this.acid = this.chill = this.frozen = 0;
+    this.marker.visible = this.bar.visible = false;
+  }
+
+  /** Hide for good (the guard between fights). */
+  retire() {
+    this.alive = false;
+    this.deathT = 99;
+    this.gulag = 0;
+    this.root.visible = this.shadow.visible = this.marker.visible = this.bar.visible = false;
+  }
+
+  /** Public so the gulag can end a drawn fight. */
+  knockOut(killer: Gnome | null, time: number) {
+    this.die(killer, time);
+  }
+
   private die(killer: Gnome | null, time: number, mist = false) {
+    if (this.gulag === 2) {
+      // lost the one-on-one
+      this.fall(time);
+      Gnome.onSay?.(this, 'death');
+      Gnome.onGulagLost?.(this, killer && killer !== this ? killer : null);
+      return;
+    }
+    if (!mist && !this.gulagUsed && !this.guard && killer && killer !== this && killer.alive && killer.team !== this.team && killer.gulag === 0) {
+      // first time soaked: off to the gulag
+      this.gulagUsed = true;
+      this.gulagKiller = killer;
+      this.gulag = 1;
+      killer.kills++;
+      Gnome.onSay?.(killer, 'kill');
+      this.fall(time);
+      Gnome.onSay?.(this, 'death');
+      Gnome.onGulag?.(this, killer);
+      return;
+    }
     if (!mist && killer && killer !== this && killer.alive && killer.team !== this.team && Gnome.teamSize(killer.team) < TEAM_MAX) { this.join(killer); return; }
     this.hp = 0;
     this.alive = false;
@@ -440,7 +497,7 @@ export class Gnome {
     let bd = 22;
     const cur = this.target && this.target.alive ? this.target : null;
     for (const g of A.gnomes) {
-      if (g === this || !g.alive || g.team === this.team) continue;
+      if (g === this || !g.alive || Gnome.allies(this, g) || g.gulag !== this.gulag) continue;
       const d = Math.hypot(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
       if (d < bd - (g === cur ? 4 : 0)) { bd = d; best = g; }
     }
@@ -477,7 +534,7 @@ export class Gnome {
 
     const dc = Math.hypot(this.pos.x, this.pos.z);
     const tgt = this.target && this.target.alive ? this.target : null;
-    const outside = dc > A.ringR - 3.5;
+    const outside = this.gulag === 0 && dc > A.ringR - 3.5;
 
     if (tgt) {
       const dx = tgt.pos.x - this.pos.x;
@@ -516,16 +573,16 @@ export class Gnome {
     } else {
       // nobody around: stroll between random spots
       this.wanderT -= dt;
-      const bonus = A.bugs.nearestBonus(this.pos.x, this.pos.z, 22);
-      const pot = this.mask !== 7 ? A.potions.nearest(this.pos.x, this.pos.z, 26, this.mask | (this.energyT > 0 ? 8 : 0)) : null;
+      const bonus = this.gulag === 2 ? null : A.bugs.nearestBonus(this.pos.x, this.pos.z, 22);
+      const pot = this.gulag === 2 ? null : this.mask !== 7 ? A.potions.nearest(this.pos.x, this.pos.z, 26, this.mask | (this.energyT > 0 ? 8 : 0)) : null;
       let goal: { x: number; z: number } | null = bonus ?? pot;
       const boss = A.gnomes[0];
-      if (!goal && boss.alive && boss.team === this.team && !this.isPlayer && Math.hypot(boss.pos.x - this.pos.x, boss.pos.z - this.pos.z) > 12) goal = boss.pos; // stick with your team
+      if (!goal && this.gulag === 0 && boss.alive && boss.gulag === 0 && boss.team === this.team && !this.isPlayer && Math.hypot(boss.pos.x - this.pos.x, boss.pos.z - this.pos.z) > 12) goal = boss.pos; // stick with your team
       if (!goal && this.hunting) {
         // go and find somebody to soak
         let bd = Infinity;
         for (const g of A.gnomes) {
-          if (g === this || !g.alive || g.team === this.team) continue;
+          if (g === this || !g.alive || Gnome.allies(this, g) || g.gulag !== this.gulag) continue;
           const d = Math.hypot(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
           if (d < bd) { bd = d; goal = g.pos; }
         }
@@ -598,8 +655,8 @@ export class Gnome {
     this.freeT = Math.max(0, this.freeT - dt);
     this.energyT = Math.max(0, this.energyT - dt);
     // bouncing: hop whenever you land, for as long as it lasts
-    this.ground = heightAt(this.pos.x, this.pos.z);
-    this.wading = waterDepth(this.pos.x, this.pos.z);
+    this.ground = this.gulag === 2 ? GULAG.y : heightAt(this.pos.x, this.pos.z);
+    this.wading = this.gulag === 2 ? 0 : waterDepth(this.pos.x, this.pos.z);
     if (this.bounceT > 0) { this.bounceT -= dt; if (this.pos.y <= this.ground + 0.05 && this.frozen <= 0 && this.wading < 1.2) this.vy = A.mod === 'moon' ? 10.5 : 8; }
     this.vy -= 24 * (A.mod === 'moon' ? 0.32 : 1) * dt;
     this.pos.y += this.vy * dt;
@@ -635,19 +692,25 @@ export class Gnome {
     const prevZ = this.pos.z;
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
-    A.forest.collide(this.pos, BODY_R);
+    if (this.gulag === 2) {
+      // the gulag floor is a flat disc with an invisible wall
+      const gx = this.pos.x - GULAG.x;
+      const gz = this.pos.z - GULAG.z;
+      const gd = Math.hypot(gx, gz);
+      if (gd > GULAG.r - 1) { this.pos.x = GULAG.x + (gx / gd) * (GULAG.r - 1); this.pos.z = GULAG.z + (gz / gd) * (GULAG.r - 1); }
+    } else A.forest.collide(this.pos, BODY_R);
     // the sea is too deep to walk into
-    if (waterDepth(this.pos.x, this.pos.z) > DEEP) {
+    if (this.gulag !== 2 && waterDepth(this.pos.x, this.pos.z) > DEEP) {
       if (waterDepth(this.pos.x, prevZ) <= DEEP) this.pos.z = prevZ;
       else if (waterDepth(prevX, this.pos.z) <= DEEP) this.pos.x = prevX;
       else { this.pos.x = prevX; this.pos.z = prevZ; }
       this.vel.x *= 0.3;
       this.vel.z *= 0.3;
     }
-    const gNow = heightAt(this.pos.x, this.pos.z);
+    const gNow = this.gulag === 2 ? GULAG.y : heightAt(this.pos.x, this.pos.z);
     if (this.pos.y < gNow) { this.pos.y = gNow; this.vy = 0; }
     for (const o of A.gnomes) {
-      if (o === this || !o.alive) continue;
+      if (o === this || !o.alive || o.gulag !== this.gulag) continue;
       const dx = this.pos.x - o.pos.x;
       const dz = this.pos.z - o.pos.z;
       const d2 = dx * dx + dz * dz;
@@ -659,8 +722,10 @@ export class Gnome {
       }
     }
     const lim = HALF - 1.2;
-    this.pos.x = Math.max(-lim, Math.min(lim, this.pos.x));
-    this.pos.z = Math.max(-lim, Math.min(lim, this.pos.z));
+    if (this.gulag !== 2) {
+      this.pos.x = Math.max(-lim, Math.min(lim, this.pos.x));
+      this.pos.z = Math.max(-lim, Math.min(lim, this.pos.z));
+    }
 
     // facing: where you aim, or the way you walk
     const speedNow = Math.hypot(this.vel.x, this.vel.z);

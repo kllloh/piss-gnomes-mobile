@@ -368,7 +368,7 @@ export class Bugs {
       let taken = false;
       if (active) {
         for (const g of gnomes) {
-          if (!g.alive) continue;
+          if (!g.alive || g.gulag === 2) continue;
           const dx = g.pos.x - bo.x;
           const dz = g.pos.z - bo.z;
           if (dx * dx + dz * dz < GRAB * GRAB) {

@@ -155,7 +155,7 @@ export class Potions {
       it.icon.position.y = 3.5 + Math.sin(t * 3 + it.x) * 0.2;
       it.group.position.y = it.gy + Math.sin(t * 2 + it.x) * 0.12;
       for (const g of gnomes) {
-        if (!g.alive) continue;
+        if (!g.alive || g.gulag === 2) continue;
         // a kind you already hold is left for a mix; the energy drink waits until the last one has worn off
         if (it.kind === 'energy' ? g.energyT > 0 : g.potions[it.kind as 'chili'] > 0) continue;
         const dx = g.pos.x - it.x;

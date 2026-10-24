@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Forest, HALF } from './forest';
-import { Gnome, TEAM_MAX, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
+import { Gulag } from './gulag';
+import { Gnome, GULAG, TEAM_MAX, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
 import { Potions } from './potions';
 import { iconImg, type IconKind } from './icons';
 import { Banter, modTagline } from './talk';
@@ -99,11 +100,16 @@ const player = new Gnome(scene, 'You', HATS[0], true, 0);
 const bots: Gnome[] = [];
 const botNames = NAMES.slice().sort(() => Math.random() - 0.5);
 for (let i = 1; i < TOTAL; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i % HATS.length], false, i));
-const gnomes: Gnome[] = [player, ...bots];
+// the gulag guard waits out of sight until a lone gnome needs an opponent
+const guard = new Gnome(scene, 'Gulag Guard', 0x9a9aa8, false, 50);
+guard.guard = true;
+guard.retire();
+const gnomes: Gnome[] = [player, ...bots, guard];
 Gnome.roster = gnomes;
 /** Every gnome starts on a team of its own, with its own colour; you are cyan. */
 const teamHex = (i: number) => (i === 0 ? 0x19f0ff : new THREE.Color().setHSL((i * 0.61803) % 1, 0.9, 0.58).getHex());
 gnomes.forEach((g, i) => g.setTeam(i, teamHex(i)));
+guard.setTeam(99, 0xb0b0c8);
 
 const potions = new Potions(scene, forest);
 const bugs = new Bugs(scene, forest);
@@ -191,7 +197,7 @@ function drawMinimap() {
   mapCtx.fillRect(-3.5, -3.5, 7, 7);
   mapCtx.restore();
   for (const g of gnomes) {
-    if (!g.alive) continue;
+    if (!g.alive || g.gulag === 2) continue;
     mapCtx.beginPath();
     mapCtx.arc(px(g.pos.x), px(g.pos.z), g.isPlayer ? 4.5 : 2.3, 0, Math.PI * 2);
     mapCtx.fillStyle = hex(g.isPlayer ? 0xffffff : g.team === player.team ? 0x19f0ff : g.teamHex);
@@ -223,8 +229,10 @@ let playerPlace = 0;
 let matchTime = 0;
 const god = new URLSearchParams(location.search).has('god');
 
+/** Still in the match: on the island, or in the gulag with a chance to come back. */
+const inPlay = (g: Gnome) => !g.guard && (g.alive || g.gulag > 0);
 function aliveGnomes(): Gnome[] {
-  return gnomes.filter((g) => g.alive);
+  return gnomes.filter(inPlay);
 }
 function aliveTeams(): number {
   return new Set(aliveGnomes().map((g) => g.team)).size;
@@ -236,7 +244,10 @@ function startMatch(at?: { x: number; z: number }) {
   const c = landNear(at ? at.x : poi.x, at ? at.z : poi.z, 0.8);
   const spots = forest.spawns.filter((sp) => Math.hypot(sp.x - c.x, sp.z - c.z) > 14).sort(() => Math.random() - 0.5);
   while (spots.length < bots.length) spots.push(forest.randomFree(HALF - 8));
-  gnomes.forEach((g, i) => g.setTeam(i, teamHex(i)));
+  gnomes.forEach((g, i) => { g.setTeam(i, teamHex(i)); g.gulag = 0; g.gulagUsed = false; g.gulagKiller = null; });
+  guard.setTeam(99, 0xb0b0c8);
+  guard.retire();
+  gulag.reset();
   player.spawn(new THREE.Vector3(c.x, heightAt(c.x, c.z), c.z));
   bots.forEach((g, i) => g.spawn(spots[i]));
   $('spawn').classList.remove('on');
@@ -278,6 +289,52 @@ function startMatch(at?: { x: number; z: number }) {
   input.takeLook();
   input.release();
 }
+
+const gulag = new Gulag(scene, guard, {
+  start(a, b) {
+    [a, b].forEach((g, i) => {
+      const kills = g.kills;
+      g.gulag = 2;
+      g.spawn(new THREE.Vector3(GULAG.x + (i ? 1 : -1) * GULAG.r * 0.62, GULAG.y, GULAG.z));
+      g.kills = kills;
+    });
+    const real = [a, b].filter((g) => !g.guard);
+    feedLine(`<b>GULAG</b> ${nameTag(a)} vs ${nameTag(b)}`);
+    sfx.alarm();
+    if (a.isPlayer || b.isPlayer) banner('GULAG 1v1', `beat ${(a.isPlayer ? b : a).name} to respawn`, 2800);
+    else if (real.length) banner('GULAG FIGHT', `${a.name} vs ${b.name}`, 1600);
+  },
+  win(winner) {
+    if (winner.guard) { winner.retire(); feedLine('The gulag guard won'); return; }
+    const kills = winner.kills;
+    winner.gulag = 0;
+    const spot = forest.randomFree(Math.max(12, Math.min(arena.ringR - 6, HALF - 8)));
+    winner.spawn(new THREE.Vector3(spot.x, heightAt(spot.x, spot.z), spot.z));
+    winner.kills = kills;
+    feedLine(`${nameTag(winner)} <b>won the gulag</b> and is back!`);
+    if (winner.isPlayer) { sfx.win(); banner('YOU WON THE GULAG!', 'back in the fight, with a bit of grace', 2800); }
+    else sfx.popAt(winner.pos);
+  },
+  lose(loser) {
+    if (loser.guard) { loser.retire(); feedLine('The gulag guard was beaten'); return; }
+    loser.gulag = 0;
+    const k = loser.gulagKiller;
+    if (k && k.alive && k.gulag === 0 && k.team !== loser.team && Gnome.teamSize(k.team) < TEAM_MAX) {
+      // lost, but whoever soaked you takes you in
+      const kills = loser.kills;
+      loser.spawn(new THREE.Vector3(k.pos.x + 2, k.pos.y, k.pos.z + 2));
+      loser.kills = kills;
+      loser.setTeam(k.team, k.teamHex);
+      Gnome.onJoin?.(loser, k);
+    } else Gnome.onDeath?.(loser, k && k.alive ? k : null);
+  },
+});
+Gnome.onGulag = (g, killer) => {
+  feedLine(`${nameTag(killer)} soaked ${nameTag(g)}: off to the <b>gulag</b>`);
+  gulag.send(g);
+  if (g.isPlayer) { sfx.lose(); banner('GULAG!', 'win a 1v1 to respawn', 3000); } else sfx.popAt(g.pos);
+};
+Gnome.onGulagLost = (g, killer) => gulag.finish(g, killer);
 
 Gnome.onJoin = (g, to) => {
   const n = Gnome.teamSize(to.team);
@@ -818,8 +875,8 @@ function playerControls(dt: number) {
   let bd = 0.32;
   let byaw = 0;
   if (state === 'play') {
-    for (const g of bots) {
-      if (!g.alive || g.landShieldActive || g.team === player.team) continue;
+    for (const g of gnomes) {
+      if (g === player || !g.alive || g.landShieldActive || Gnome.allies(player, g) || g.gulag !== player.gulag) continue;
       const dx = g.pos.x - player.pos.x;
       const dz = g.pos.z - player.pos.z;
       const d = Math.hypot(dx, dz);
@@ -878,7 +935,10 @@ function updateHud() {
   bf.style.display = buffs.length && player.alive ? 'block' : 'none';
   if (buffs.length) bf.innerHTML = buffs.join('  \u00b7  ');
   const chip = $('modchip');
-  if (curMod && state === 'play') {
+  if (player.gulag > 0 && state === 'play') {
+    chip.style.display = 'block';
+    chip.textContent = player.gulag === 2 ? 'GULAG · WIN THE 1v1 TO RESPAWN' : 'GULAG QUEUE · WAITING FOR A FIGHT';
+  } else if (curMod && state === 'play') {
     chip.style.display = 'block';
     chip.textContent = `${MOD_LABEL[curMod]} MODE · NEXT ${Math.ceil(Math.max(0, modUntil - arena.time))}s`;
   } else chip.style.display = 'none';
@@ -940,7 +1000,7 @@ function frame(nowMs: number, lastMs: number) {
           const p = Math.min(1, (arena.time - MIST_WAIT) / MIST_TIME);
           arena.ringR = MIST_START + (MIST_END - MIST_START) * p;
           const dmg = (3 + 8 * p) * dt;
-          for (const g of gnomes) if (g.alive && Math.hypot(g.pos.x, g.pos.z) > arena.ringR && !(god && g.isPlayer)) g.mist(dmg, arena.time);
+          for (const g of gnomes) if (g.alive && g.gulag === 0 && Math.hypot(g.pos.x, g.pos.z) > arena.ringR && !(god && g.isPlayer)) g.mist(dmg, arena.time);
         }
       }
 
@@ -984,7 +1044,7 @@ function frame(nowMs: number, lastMs: number) {
         banter.sayLine(g, `${kind}:bonus`);
       });
       {
-        const ev = nathaniel.update(dt, nowMs / 1000, forest, arena.ringR, state === 'play' && player.alive ? player.pos : null);
+        const ev = nathaniel.update(dt, nowMs / 1000, forest, arena.ringR, state === 'play' && player.alive && player.gulag === 0 ? player.pos : null);
         if (ev.shout) {
           // you say hi, then he answers with the only word he knows
           if (player.alive) banter.sayLine(player, 'hi:nathaniel');
@@ -1039,7 +1099,8 @@ function frame(nowMs: number, lastMs: number) {
       soundScape();
 
       // end of the match / the player's own card
-      if (state === 'play' && aliveTeams() <= 1) endMatch();
+      if (state === 'play') gulag.update(dt, arena.time);
+      if (state === 'play' && aliveTeams() <= 1 && !gulag.busy()) endMatch();
       if (!player.alive && overTimer > 0) {
         overTimer -= dt;
         if (overTimer <= 0 && state === 'play') showEliminated();
@@ -1057,6 +1118,7 @@ function frame(nowMs: number, lastMs: number) {
   // --- camera: the player's eyes (or the eyes of whoever we are watching) ---
   let focus: Gnome | null = player.alive ? player : null;
   if (!focus) {
+    if (player.gulag === 1 && gulag.fight && gulag.fight[0].alive) watchTarget = gulag.fight[0]; // wait your turn: watch the fight
     if (!watchTarget || !watchTarget.alive) {
       watchTarget = null;
       let bd = Infinity;
@@ -1090,7 +1152,7 @@ function frame(nowMs: number, lastMs: number) {
   banter.update(dt, camera);
 
   // the landing marker: where your stream will come down
-  if (state !== 'menu' && player.alive) {
+  if (state !== 'menu' && player.alive && player.gulag === 0) {
     const cp = Math.cos(player.pitch);
     const fx = Math.sin(player.yaw) * cp;
     const fz = Math.cos(player.yaw) * cp;
@@ -1212,4 +1274,4 @@ function loop(now: number) {
 requestAnimationFrame((t) => { last = t; lastDrawn = t; loop(t); });
 
 // a little handle for testing
-(window as unknown as { pg: unknown }).pg = { player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, quality, get pixelRatio() { return pixelRatio; }, mod: (m: Mod) => { startMode(m); lastMod = m; modNext = arena.time + 600; modUntil = modNext; }, get state() { return state; } };
+(window as unknown as { pg: unknown }).pg = { gulag, guard, player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, quality, get pixelRatio() { return pixelRatio; }, mod: (m: Mod) => { startMode(m); lastMod = m; modNext = arena.time + 600; modUntil = modNext; }, get state() { return state; } };

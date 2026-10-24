@@ -110,3 +110,8 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Smaller map, 20 gnomes:** the island is back to its original size (about two-thirds of the width it had), with object counts scaled to match; 19 bots plus you.
 - **Soak a gnome and they join your team**, up to 5 per team. Teammates show cyan on the minimap and in the world, your streams (and fire) pass through them, bots never target them, and your bot teammates stick near you. Get soaked yourself and you join your attacker's team instead (a full team of five eliminates you). Only the mist eliminates for good. The last team standing wins.
 - **Super crisp:** the picture now renders at the screen's full native resolution (up to 2x), with 4x (high) or 2x (mid) anti-aliasing, no colour dither, no sky banding, no vertex snapping and less lens wobble. The frame-time governor still backs off on slow devices.
+
+## Gulag update
+- **The first time you are soaked you go to the gulag:** a neon arena floating 70 units above the island. You wait for a 1v1 against the next gnome to be soaked, or against the **Gulag Guard** if nobody else is waiting (you always go next, ahead of the bots). The camera shows the current fight while you wait.
+- **Win** and you drop back onto the island at a random spot with full health. **Lose** and whoever soaked you takes you onto their team (if it has room), otherwise you are out. A drawn fight is decided on health after 25 s. Soaked a second time, or caught by the mist, there is no gulag.
+- Gulag fighters are on separate sides even if they are teammates, cannot pick anything up, and are not hurt by the mist. Fighters in the gulag count as still in the match, so the game only ends when the gulag is empty.
