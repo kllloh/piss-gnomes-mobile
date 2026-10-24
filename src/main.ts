@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Forest, HALF } from './forest';
 import { Gulag } from './gulag';
+import { net, makeRoomCode, type Msg } from './net';
+import { packGnome, applyGnome } from './netsync';
 import { Gnome, GULAG, TEAM_MAX, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
 import { Potions } from './potions';
 import { iconImg, type IconKind } from './icons';
@@ -98,7 +100,7 @@ const TITLED = ['Sir Wetsalot', 'Captain Drip', 'Lord Puddle', 'Old Tumble', 'Da
 const NAMES = [...FIRST, ...TITLED];
 const HATS = [0xc0282d, 0xd0842a, 0xd0c040, 0x4a9a4a, 0x2a9aaa, 0x3a5aaa, 0x7a4aaa, 0xaa3a7a, 0xc8c8c0, 0x7a5a3a, 0x2a8a6a, 0xc06a4a];
 
-const player = new Gnome(scene, 'You', HATS[0], true, 0);
+let player = new Gnome(scene, 'You', HATS[0], true, 0);
 const bots: Gnome[] = [];
 const botNames = NAMES.slice().sort(() => Math.random() - 0.5);
 for (let i = 1; i < TOTAL; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i % HATS.length], false, i));
@@ -107,6 +109,7 @@ const guard = new Gnome(scene, 'Gulag Guard', 0x9a9aa8, false, 50);
 guard.guard = true;
 guard.retire();
 const gnomes: Gnome[] = [player, ...bots, guard];
+const baseNames = gnomes.map((x) => x.name);
 Gnome.roster = gnomes;
 /** Every gnome starts on a team of its own, with its own colour; you are cyan. */
 const teamHex = (i: number) => (i === 0 ? 0x19f0ff : new THREE.Color().setHSL((i * 0.61803) % 1, 0.9, 0.58).getHex());
@@ -142,6 +145,10 @@ const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 const nameTag = (g: Gnome) => `<span style="color:${hex(g.isPlayer ? 0xffffff : g.teamHex)}">${g.name}</span>`;
 
 function feedLine(html: string) {
+  feedLocal(html);
+  if (net.role === 'host') net.sendAll({ k: 'ev', e: 'feed', a: [html] });
+}
+function feedLocal(html: string) {
   const feed = $('feed');
   const d = document.createElement('div');
   d.innerHTML = html;
@@ -150,8 +157,45 @@ function feedLine(html: string) {
   setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 700); }, 6000);
 }
 
+/** While set, banners and sounds go to that remote player's device instead of this one. */
+let redirect: Gnome | null = null;
+const peerOfSlot = new Map<number, string>();
+const slotOfPeer = new Map<string, number>();
+function tell(g: Gnome, m: Msg) {
+  const id = peerOfSlot.get(gnomes.indexOf(g));
+  if (id) net.sendTo(id, m);
+}
+/** Run `fn` for a human: here if it is you, on their device if they are somebody else (banner() and fx() follow). Bots do nothing. */
+function forHuman(g: Gnome, fn: () => void) {
+  if (g.isPlayer) fn();
+  else if (g.remote) {
+    redirect = g;
+    try { fn(); } finally { redirect = null; }
+  }
+}
+const isHuman = (g: Gnome) => g.isPlayer || g.remote;
+type FxName = 'pop' | 'win' | 'lose' | 'alarm' | 'beep';
+function playFx(n: FxName, hi = false) {
+  if (n === 'beep') sfx.beep(hi);
+  else sfx[n]();
+}
+function fx(n: FxName, hi = false) {
+  if (redirect) { tell(redirect, { k: 'ev', e: 'fx', a: [n, hi ? 1 : 0] }); return; }
+  playFx(n, hi);
+}
+/** Everybody sees and hears these. */
+function gBanner(text: string, small = '', ms = 1800) {
+  banner(text, small, ms);
+  if (net.role === 'host') net.sendAll({ k: 'ev', e: 'banner', a: [text, small, ms] });
+}
+function gFx(n: FxName, hi = false) {
+  playFx(n, hi);
+  if (net.role === 'host') net.sendAll({ k: 'ev', e: 'fx', a: [n, hi ? 1 : 0] });
+}
+
 let bannerTimer = 0;
 function banner(text: string, small = '', ms = 1800) {
+  if (redirect) { tell(redirect, { k: 'ev', e: 'banner', a: [text, small, ms] }); return; }
   const b = $('banner');
   b.innerHTML = text + (small ? `<small>${small}</small>` : '');
   b.style.opacity = '1';
@@ -290,6 +334,7 @@ function startMatch(at?: { x: number; z: number }) {
   banner('LAST GNOME STANDING', '', 0);
   input.takeLook();
   input.release();
+  if (net.role === 'host') net.sendAll({ k: 'start', pot: potions.layout(), names: gnomes.map((x) => x.name) });
 }
 
 const gulag = new Gulag(scene, guard, {
@@ -302,9 +347,8 @@ const gulag = new Gulag(scene, guard, {
     });
     const real = [a, b].filter((g) => !g.guard);
     feedLine(`<b>GULAG</b> ${nameTag(a)} vs ${nameTag(b)}`);
-    sfx.alarm();
-    if (a.isPlayer || b.isPlayer) banner('GULAG 1v1', `beat ${(a.isPlayer ? b : a).name} to respawn`, 2800);
-    else if (real.length) banner('GULAG FIGHT', `${a.name} vs ${b.name}`, 1600);
+    for (const f of [a, b]) forHuman(f, () => { fx('alarm'); banner('GULAG 1v1', `beat ${(f === a ? b : a).name} to respawn`, 2800); });
+    if (!isHuman(a) && !isHuman(b) && real.length) { gFx('alarm'); gBanner('GULAG FIGHT', `${a.name} vs ${b.name}`, 1600); }
   },
   win(winner) {
     if (winner.guard) { winner.retire(); feedLine('The gulag guard won'); return; }
@@ -314,7 +358,7 @@ const gulag = new Gulag(scene, guard, {
     winner.spawn(new THREE.Vector3(spot.x, heightAt(spot.x, spot.z), spot.z));
     winner.kills = kills;
     feedLine(`${nameTag(winner)} <b>won the gulag</b> and is back!`);
-    if (winner.isPlayer) { sfx.win(); banner('YOU WON THE GULAG!', 'back in the fight, with a bit of grace', 2800); }
+    if (isHuman(winner)) forHuman(winner, () => { fx('win'); banner('YOU WON THE GULAG!', 'back in the fight, with a bit of grace', 2800); });
     else sfx.popAt(winner.pos);
   },
   lose(loser) {
@@ -334,20 +378,19 @@ const gulag = new Gulag(scene, guard, {
 Gnome.onGulag = (g, killer) => {
   feedLine(`${nameTag(killer)} soaked ${nameTag(g)}: off to the <b>gulag</b>`);
   gulag.send(g);
-  if (g.isPlayer) { sfx.lose(); banner('GULAG!', 'win a 1v1 to respawn', 3000); } else sfx.popAt(g.pos);
+  if (isHuman(g)) forHuman(g, () => { fx('lose'); banner('GULAG!', 'win a 1v1 to respawn', 3000); });
+  else sfx.popAt(g.pos);
 };
 Gnome.onGulagLost = (g, killer) => gulag.finish(g, killer);
 
 Gnome.onJoin = (g, to) => {
   const n = Gnome.teamSize(to.team);
   feedLine(`${nameTag(to)} soaked ${nameTag(g)}, who joined their team`);
-  if (g.isPlayer) {
-    sfx.pop();
-    banner(`YOU JOINED ${to.name.toUpperCase()}'S TEAM`, `soaked! now ${n} of ${TEAM_MAX} on the team`, 2600);
-  } else if (to.team === player.team) {
-    sfx.pop();
-    banner('NEW TEAMMATE!', `${g.name} joined your team (${n}/${TEAM_MAX})`, 1900);
-  } else sfx.popAt(g.pos);
+  if (isHuman(g)) forHuman(g, () => { fx('pop'); banner(`YOU JOINED ${to.name.toUpperCase()}'S TEAM`, `soaked! now ${n} of ${TEAM_MAX} on the team`, 2600); });
+  else sfx.popAt(g.pos);
+  for (const h of gnomes) {
+    if (h !== g && isHuman(h) && h.team === to.team) forHuman(h, () => { fx('pop'); banner('NEW TEAMMATE!', `${g.name} joined your team (${n}/${TEAM_MAX})`, 1900); });
+  }
 };
 
 Gnome.onDeath = (victim, killer) => {
@@ -356,20 +399,19 @@ Gnome.onDeath = (victim, killer) => {
   pee.puddleAt(victim.pos.x, victim.pos.z);
   feedLine(killer ? `${nameTag(killer)} drenched ${nameTag(victim)}` : `${nameTag(victim)} was swallowed by the mist`);
   $('aliveN').textContent = String(aliveGnomes().length);
-  if (victim.isPlayer) {
-    playerPlace = left + 1;
-    sfx.lose();
-    banner('YOU WERE SOAKED', `${ordinal(playerPlace)} place`, 2200);
-    overTimer = 2.2;
+  if (isHuman(victim)) {
+    const place = left + 1;
+    forHuman(victim, () => { fx('lose'); banner('YOU WERE SOAKED', `${ordinal(place)} place`, 2200); });
+    if (victim.isPlayer) { playerPlace = place; overTimer = 2.2; } else tell(victim, { k: 'ev', e: 'dead', a: [place] });
   } else {
     sfx.popAt(victim.pos);
-    if (killer?.isPlayer) banner('NICE SOAKING!', `${victim.name} is out`, 1200);
+    if (killer && isHuman(killer)) forHuman(killer, () => banner('NICE SOAKING!', `${victim.name} is out`, 1200));
   }
 };
 
 let lastHurtSfx = 0;
-Gnome.onHurt = (g) => {
-  if (!g.isPlayer) { sfx.hurtAt(g.pos, g.id); return; }
+const lastHurtTell = new Map<Gnome, number>();
+function localHurt() {
   const now = performance.now();
   if (now - lastHurtSfx > 140) {
     lastHurtSfx = now;
@@ -380,6 +422,17 @@ Gnome.onHurt = (g) => {
   h.style.transition = 'none';
   h.style.opacity = '0.7';
   requestAnimationFrame(() => { h.style.transition = 'opacity .35s'; h.style.opacity = '0'; });
+}
+Gnome.onHurt = (g) => {
+  if (!g.isPlayer) {
+    if (g.remote) {
+      const now = performance.now();
+      if (now - (lastHurtTell.get(g) ?? 0) > 140) { lastHurtTell.set(g, now); tell(g, { k: 'ev', e: 'hurt', a: [] }); }
+    }
+    sfx.hurtAt(g.pos, g.id);
+    return;
+  }
+  localHurt();
 };
 
 function ordinal(n: number): string {
@@ -397,6 +450,8 @@ function endMatch() {
   const winner = aliveGnomes()[0] ?? null;
   const won = !!winner && winner.team === player.team && player.alive;
   if (won) { playerPlace = 1; sfx.win(); }
+  $('btnAgain').style.display = net.role === 'client' ? 'none' : '';
+  $('btnLeave').style.display = net.active ? '' : 'none';
   $('overTitle').textContent = won ? 'LAST TEAM STANDING!' : playerPlace ? 'ELIMINATED' : 'DRAW';
   $('overSub').textContent = won ? 'Your team peed on the whole forest and won.' : winner ? `${winner.name}'s team is the last one standing.` : 'Nobody is left. The mist wins.';
   $('stats').innerHTML = `Placed <b>${ordinal(playerPlace || TOTAL)}</b> of ${TOTAL}<br>Gnomes soaked: <b>${player.kills}</b><br>Time: <b>${fmt(matchTime)}</b>`;
@@ -410,12 +465,14 @@ function showEliminated() {
   $('overSub').textContent = 'You were soaked.';
   $('stats').innerHTML = `Placed <b>${ordinal(playerPlace)}</b> of ${TOTAL}<br>Gnomes soaked: <b>${player.kills}</b><br>Time: <b>${fmt(matchTime)}</b>`;
   $('btnWatch').style.display = '';
+  $('btnAgain').style.display = net.role === 'client' ? 'none' : '';
+  $('btnLeave').style.display = net.active ? '' : 'none';
   $('over').classList.add('on');
   input.release();
 }
 
 function pause(on: boolean) {
-  if (state === 'menu' || state === 'over') return;
+  if (state === 'menu' || state === 'over' || net.active) return; // nobody can stop a shared match
   paused = on;
   $('pause').classList.toggle('on', on);
   input.release();
@@ -618,6 +675,11 @@ function updateLocation() {
 // icons in the how-to chips and headings
 document.querySelectorAll<HTMLElement>('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', iconImg(el.dataset.icon as IconKind)));
 
+{
+  const j = new URLSearchParams(location.search).get('join');
+  if (j) window.setTimeout(() => { void joinRoom(j.toUpperCase()); }, 400);
+}
+
 // the map picker: the page is reloaded with the chosen map, so the whole island is built for it
 document.querySelectorAll<HTMLButtonElement>('#maps button').forEach((b) => {
   b.classList.toggle('on', b.dataset.map === THEME_ID);
@@ -685,6 +747,21 @@ $('btnPlay').addEventListener('click', () => {
   openSpawn();
 });
 $('btnAgain').addEventListener('click', () => openSpawn());
+$('btnLeave').addEventListener('click', () => leaveRoom());
+$('btnHost').addEventListener('click', () => { void hostRoom(); });
+$('btnJoin').addEventListener('click', () => {
+  const c = (window.prompt('Room code?') || '').trim().toUpperCase();
+  if (c) void joinRoom(c);
+});
+$('btnLobbyStart').addEventListener('click', () => { $('lobby').classList.remove('on'); openSpawn(); });
+$('btnLobbyBack').addEventListener('click', () => leaveRoom());
+$('btnCopy').addEventListener('click', () => {
+  const u = new URL(location.href);
+  u.search = '?join=' + net.code + (net.local ? '&net=local' : '');
+  const link = u.toString();
+  if (navigator.clipboard) navigator.clipboard.writeText(link).then(() => banner('LINK COPIED', link, 1800), () => window.prompt('Copy this link', link));
+  else window.prompt('Copy this link', link);
+});
 $('btnWatch').addEventListener('click', () => {
   $('over').classList.remove('on');
   spectating = true;
@@ -693,7 +770,7 @@ $('btnPause').addEventListener('click', () => pause(true));
 $('btnResume').addEventListener('click', () => pause(false));
 $('btnRestart').addEventListener('click', () => { paused = false; openSpawn(); });
 $('btnDeploy').addEventListener('click', () => startMatch(spawnPick));
-$('btnSpawnBack').addEventListener('click', () => { $('spawn').classList.remove('on'); $('menu').classList.add('on'); });
+$('btnSpawnBack').addEventListener('click', () => { $('spawn').classList.remove('on'); if (net.role === 'host') $('lobby').classList.add('on'); else $('menu').classList.add('on'); });
 $('btnSound').addEventListener('click', () => {
   sfx.setMuted(!sfx.muted);
   banter.setVoices(!sfx.muted);
@@ -971,32 +1048,317 @@ function updateHud() {
   updateLocation();
 }
 
+// =============================================== multiplayer =====================================================
+
+const MAX_HUMANS = 8;
+let myName = '';
+try { myName = localStorage.getItem('pg-name') || ''; } catch { /* no storage */ }
+let lastNath: number[] | null = null;
+let netAcc = 0;
+let netIn = 0;
+const r2 = (v: number) => Math.round(v * 100) / 100;
+
+function askName(): string {
+  const d = myName || 'Gnome' + Math.floor(10 + Math.random() * 90);
+  const n = (window.prompt('Your name?', d) || d).trim().slice(0, 14) || d;
+  myName = n;
+  try { localStorage.setItem('pg-name', n); } catch { /* no storage */ }
+  return n;
+}
+
+function lobbyPlayers(): string[] {
+  const out = [player.name];
+  for (const [slot] of peerOfSlot) out.push(gnomes[slot].name);
+  return out;
+}
+function renderLobby(players: string[], host: boolean) {
+  $('lobbyCode').textContent = net.code;
+  $('lobbyList').innerHTML = players.map((n, i) => `<div>${i === 0 ? '&#9733; ' : ''}${n.replace(/</g, '&lt;')}</div>`).join('') + `<div class="dim">${Math.max(0, TOTAL - players.length)} bots will fill the rest</div>`;
+  $('lobbyHint').textContent = host ? 'Share the code or the link. Start when everybody is in.' : 'Waiting for the host to start...';
+  $('btnLobbyStart').style.display = host ? '' : 'none';
+  $('btnCopy').style.display = host ? '' : 'none';
+}
+function showLobby(on: boolean) {
+  $('lobby').classList.toggle('on', on);
+  $('menu').classList.toggle('on', !on && state === 'menu');
+}
+function broadcastLobby() {
+  const p = lobbyPlayers();
+  net.sendAll({ k: 'lobby', p });
+  renderLobby(p, true);
+}
+
+async function hostRoom() {
+  const name = askName();
+  const code = makeRoomCode();
+  try { await net.host(code); } catch {
+    window.alert('Could not open a room. Is the internet working?');
+    net.close();
+    return;
+  }
+  player.name = name;
+  peerOfSlot.clear();
+  slotOfPeer.clear();
+  banter.onSpeak = (g, text, loud) => { if (net.role === 'host' && net.clients.length) net.sendAll({ k: 'ev', e: 'say', a: [gnomes.indexOf(g), text, loud ? 1 : 0] }); };
+  showLobby(true);
+  renderLobby(lobbyPlayers(), true);
+}
+
+async function joinRoom(code: string) {
+  const name = askName();
+  try { await net.join(code); } catch {
+    window.alert('Could not find that room. Check the code.');
+    net.close();
+    return;
+  }
+  Gnome.netClient = true;
+  banter.silent = true;
+  net.sendHost({ k: 'hello', name });
+  showLobby(true);
+  $('lobbyCode').textContent = code;
+  $('lobbyList').textContent = 'Connecting...';
+  $('lobbyHint').textContent = '';
+  $('btnLobbyStart').style.display = 'none';
+  $('btnCopy').style.display = 'none';
+}
+
+function setLocal(g: Gnome) {
+  if (g === player) return;
+  player.setLocal(false);
+  g.setLocal(true);
+  player = g;
+  banter.player = g;
+}
+
+net.onLeave = (id) => {
+  const slot = slotOfPeer.get(id);
+  if (slot === undefined) return;
+  const g = gnomes[slot];
+  g.remote = false; // a bot takes the controls
+  feedLine(`<b>${g.name}</b> left; a bot takes over`);
+  g.name = baseNames[slot];
+  slotOfPeer.delete(id);
+  peerOfSlot.delete(slot);
+  broadcastLobby();
+};
+net.onHostLost = () => {
+  Gnome.netClient = false;
+  state = 'over';
+  net.close();
+  $('overTitle').textContent = 'HOST LEFT';
+  $('overSub').textContent = 'The match has ended.';
+  $('stats').innerHTML = '';
+  $('btnAgain').style.display = 'none';
+  $('btnWatch').style.display = 'none';
+  $('btnLeave').style.display = '';
+  $('lobby').classList.remove('on');
+  $('over').classList.add('on');
+  input.release();
+};
+
+function leaveRoom() {
+  const u = new URL(location.href);
+  u.searchParams.delete('join');
+  net.close();
+  location.replace(u.toString());
+}
+
+net.onMessage = (from, m) => {
+  if (net.role === 'host') {
+    if (m.k === 'hello') {
+      if (state === 'play' || state === 'countdown' || peerOfSlot.size >= MAX_HUMANS) { net.sendTo(from, { k: 'full' }); net.kick(from); return; }
+      let slot = 1;
+      while (slot < TOTAL && gnomes[slot].remote) slot++;
+      if (slot >= TOTAL) { net.sendTo(from, { k: 'full' }); net.kick(from); return; }
+      const g = gnomes[slot];
+      g.remote = true;
+      g.name = String(m.name ?? 'Gnome').slice(0, 14);
+      peerOfSlot.set(slot, from);
+      slotOfPeer.set(from, slot);
+      net.sendTo(from, { k: 'welcome', slot, map: THEME_ID, names: gnomes.map((x) => x.name) });
+      broadcastLobby();
+    } else if (m.k === 'in') {
+      const slot = slotOfPeer.get(from);
+      if (slot === undefined) return;
+      const g = gnomes[slot];
+      g.netYaw = m.yaw as number;
+      g.netPitch = m.pitch as number;
+      g.netPee = m.pee === 1;
+      if (m.ep === g.spawnCount && g.alive) { g.netX = m.x as number; g.netY = m.y as number; g.netZ = m.z as number; }
+    }
+    return;
+  }
+  // ---- client ----
+  switch (m.k) {
+    case 'welcome': {
+      if (m.map !== THEME_ID) {
+        // the host is on another map: switch to it and come straight back
+        try { localStorage.setItem('pg-map', String(m.map)); } catch { /* no storage */ }
+        const u = new URL(location.href);
+        u.searchParams.delete('map');
+        u.searchParams.set('join', net.code);
+        net.close();
+        location.replace(u.toString());
+        return;
+      }
+      (m.names as string[]).forEach((n, i) => { if (gnomes[i]) gnomes[i].name = n; });
+      setLocal(gnomes[m.slot as number]);
+      break;
+    }
+    case 'lobby':
+      renderLobby(m.p as string[], false);
+      break;
+    case 'full':
+      window.alert('That room is full, or its match has already started.');
+      leaveRoom();
+      break;
+    case 'start':
+      (m.names as string[]).forEach((n, i) => { if (gnomes[i]) gnomes[i].name = n; });
+      potions.setLayout(m.pot as number[]);
+      clientBegin();
+      break;
+    case 's':
+      applySnap(m);
+      break;
+    case 'ev': {
+      const a = m.a as (string | number)[];
+      switch (m.e) {
+        case 'feed': feedLocal(a[0] as string); break;
+        case 'banner': banner(a[0] as string, a[1] as string, a[2] as number); break;
+        case 'fx': playFx(a[0] as FxName, a[1] === 1); break;
+        case 'say': { const g = gnomes[a[0] as number]; if (g) banter.showText(g, a[1] as string, a[2] === 1); break; }
+        case 'hurt': localHurt(); break;
+        case 'dead': playerPlace = a[0] as number; overTimer = 2.2; break;
+        case 'end': endMatch(); break;
+        case 'shout': NATHANIEL_POS.copy(nathaniel.pos); banter.shout(NATHANIEL_POS, nathaniel.headY + 0.8, 'Nathaniel!', 0xffe066, true); break;
+      }
+      break;
+    }
+  }
+};
+
+/** Client: the host says a match is starting. */
+function clientBegin() {
+  $('spawn').classList.remove('on');
+  $('lobby').classList.remove('on');
+  pee.clear();
+  arena.time = 0;
+  arena.ringR = MIST_START;
+  arena.frozen = true;
+  matchTime = 0;
+  countdown = COUNTDOWN;
+  lastBeep = 99;
+  mistStarted = false;
+  spectating = false;
+  watchTarget = null;
+  playerPlace = 0;
+  overTimer = 0;
+  state = 'countdown';
+  paused = false;
+  curMod = null;
+  pendingMod = null;
+  modAmt = 0;
+  arena.mod = null;
+  sfx.setMood('none');
+  bugs.reset();
+  banter.clear();
+  nathSeen = false;
+  requestWakeLock();
+  $('feed').innerHTML = '';
+  document.body.classList.remove('inmenu');
+  $('menu').classList.remove('on');
+  $('over').classList.remove('on');
+  $('pause').classList.remove('on');
+  $('aliveN').textContent = String(TOTAL);
+  banner('LAST TEAM STANDING', '', 0);
+  input.takeLook();
+  input.release();
+}
+
+function buildSnap(): Msg {
+  return {
+    k: 's',
+    t: r2(arena.time),
+    st: state === 'countdown' ? 1 : state === 'play' ? 2 : state === 'over' ? 3 : 0,
+    rr: Math.round(arena.ringR * 10) / 10,
+    ms: mistStarted ? 1 : 0,
+    md: curMod ? ALL_MODS.indexOf(curMod) + 1 : 0,
+    mu: Math.round(Math.max(0, modUntil - arena.time)),
+    g: gnomes.map(packGnome),
+    p: potions.getState(),
+    b: bugs.getState(),
+    n: nathaniel.netState(),
+  };
+}
+
+/** Client: take the host's picture of the match. */
+function applySnap(m: Msg) {
+  (m.g as number[][]).forEach((a, i) => { if (gnomes[i]) applyGnome(gnomes[i], a, gnomes[i] === player, teamHex); });
+  arena.time = m.t as number;
+  matchTime = arena.time;
+  arena.ringR = m.rr as number;
+  mistStarted = m.ms === 1;
+  const st = m.st as number;
+  if ((st === 1 || st === 2) && (state === 'menu' || state === 'over')) clientBegin();
+  if (st === 2 && state === 'countdown') { state = 'play'; arena.frozen = false; }
+  if (st === 1 && state === 'countdown') arena.frozen = true;
+  const md = m.md as number;
+  const want = md ? ALL_MODS[md - 1] : null;
+  if (want && want !== (pendingMod ?? curMod)) {
+    if (curMod) pendingMod = want;
+    else startMode(want);
+  }
+  modUntil = arena.time + (m.mu as number);
+  potions.setState(m.p as string);
+  bugs.applyState(m.b as { b: number[][]; o: number[][] });
+  lastNath = m.n as number[];
+  nathaniel.show(true);
+}
+
+/** Send what the others need: the host the whole picture, a client just where it is and where it is aiming. */
+function netTick(dt: number) {
+  if (net.role === 'host' && net.clients.length && state !== 'menu') {
+    netAcc += dt;
+    if (netAcc >= 1 / 15) { netAcc = 0; net.sendAll(buildSnap()); }
+  } else if (net.role === 'client' && state !== 'menu') {
+    netIn += dt;
+    if (netIn >= 0.05) {
+      netIn = 0;
+      net.sendHost({ k: 'in', x: r2(player.pos.x), y: r2(player.pos.y), z: r2(player.pos.z), yaw: r2(player.aimYawNow), pitch: r2(player.aimPitchNow), pee: player.peeing ? 1 : 0, ep: player.spawnCount });
+    }
+  }
+}
+
 function startMode(m: Mod) {
   pendingMod = null;
   curMod = m;
   shownMod = m;
   arena.mod = m;
   sfx.setMood(m);
-  banner(MOD_LABEL[m] + ' MODE!', modTagline(m), 3000);
+  if (net.role === 'client') return; // the host announces it
+  gBanner(MOD_LABEL[m] + ' MODE!', modTagline(m), 3000);
   feedLine(`<b>${MOD_LABEL[m]} MODE</b>`);
-  sfx.alarm();
+  gFx('alarm');
   for (const b of bots.filter((x) => x.alive).slice(0, 3)) banter.say(b, 'idle', m, true);
 }
 
 function frame(nowMs: number, lastMs: number) {
   const dt = Math.min(0.05, (nowMs - lastMs) / 1000);
+  const client = net.role === 'client';
 
   if (state !== 'menu' && !paused) {
     // --- simulation ---
-    if (state === 'countdown') {
+    if (client) {
+      // the host keeps the time
+    } else if (state === 'countdown') {
       countdown -= dt;
       const n = Math.ceil(countdown - (COUNTDOWN - 3));
-      if (countdown > COUNTDOWN - 3 && n !== lastBeep) { lastBeep = n; banner(String(Math.max(1, n)), '', 0); sfx.beep(); }
+      if (countdown > COUNTDOWN - 3 && n !== lastBeep) { lastBeep = n; gBanner(String(Math.max(1, n)), '', 0); gFx('beep'); }
       if (countdown <= COUNTDOWN - 3) {
         arena.frozen = false;
         state = 'play';
-        banner('PEE!', 'last gnome standing wins', 1500);
-        sfx.beep(true);
+        gBanner('PEE!', 'last team standing wins', 1500);
+        gFx('beep', true);
       }
     } else if (state === 'play') {
       arena.time += dt;
@@ -1009,9 +1371,9 @@ function frame(nowMs: number, lastMs: number) {
       if (god) player.hp = MAX_HP;
 
       // the mist
-      if (state === 'play') {
+      if (state === 'play' && !client) {
         if (arena.time >= MIST_WAIT) {
-          if (!mistStarted) { mistStarted = true; banner('THE MIST IS CLOSING IN', 'stay inside the circle', 2400); sfx.alarm(); const talkers = bots.filter((b) => b.alive); if (talkers.length) banter.sayLine(talkers[Math.floor(Math.random() * talkers.length)], 'mist'); }
+          if (!mistStarted) { mistStarted = true; gBanner('THE MIST IS CLOSING IN', 'stay inside the circle', 2400); gFx('alarm'); const talkers = bots.filter((b) => b.alive); if (talkers.length) banter.sayLine(talkers[Math.floor(Math.random() * talkers.length)], 'mist'); }
           const p = Math.min(1, (arena.time - MIST_WAIT) / MIST_TIME);
           arena.ringR = MIST_START + (MIST_END - MIST_START) * p;
           const dmg = (3 + 8 * p) * dt;
@@ -1031,41 +1393,58 @@ function frame(nowMs: number, lastMs: number) {
           }
         }
       });
+      if (client) {
+        potions.animate(nowMs / 1000);
+        bugs.clientTick(dt, nowMs / 1000);
+        if (lastNath) nathaniel.applyNet(dt, nowMs / 1000, lastNath);
+      } else {
       potions.update(dt, nowMs / 1000, gnomes, (g, kind) => {
         if (kind === 'energy') {
           banter.sayLine(g, 'energy:bonus');
           if (!g.isPlayer) sfx.grabAt(g.pos);
-          else {
-            sfx.pop();
+          forHuman(g, () => {
+            fx('pop');
             banner(iconImg('energy') + ' WHITE MONSTER!', 'infinite bladder and a double stream for 20 seconds', 2800);
-          }
+          });
           return;
         }
         const mixed = (g.mask & (g.mask - 1)) !== 0; // two or more potions at once
         banter.sayLine(g, mixed ? 'mix:potion' : `${kind}:potion`);
         if (!g.isPlayer) sfx.grabAt(g.pos);
-        if (g.isPlayer) {
-          sfx.pop();
+        forHuman(g, () => {
+          fx('pop');
           const icons = (['chili', 'ice', 'acid'] as const).filter((k) => g.potions[k] > 0).map((k) => iconImg(k)).join('');
           if (mixed) banner(icons + ' MIX! ' + MIX[g.mask].name.toUpperCase(), MIX[g.mask].blurb, 2600);
           else banner(iconImg(kind as IconKind) + ' ' + PEE[kind].name.toUpperCase() + '!', PEE[kind].blurb, 1700);
-        }
+        });
       });
       bugs.update(dt, nowMs / 1000, arena.ringR, gnomes, state === 'play', (g, kind: BonusKind) => {
-        if (g.isPlayer) {
-          sfx.pop();
+        if (!g.isPlayer) sfx.grabAt(g.pos);
+        forHuman(g, () => {
+          fx('pop');
           banner(iconImg(kind) + ' ' + BONUS_INFO[kind].name + '!', BONUS_INFO[kind].blurb, 1700);
-        } else sfx.grabAt(g.pos);
+        });
         banter.sayLine(g, `${kind}:bonus`);
       });
       {
-        const ev = nathaniel.update(dt, nowMs / 1000, forest, arena.ringR, state === 'play' && player.alive && player.gulag === 0 ? player.pos : null);
+        // whichever person is nearest him can say hi
+        let who: Gnome | null = null;
+        if (state === 'play') {
+          let bd = Infinity;
+          for (const h of gnomes) {
+            if (!isHuman(h) || !h.alive || h.gulag !== 0) continue;
+            const d = Math.hypot(h.pos.x - nathaniel.pos.x, h.pos.z - nathaniel.pos.z);
+            if (d < bd) { bd = d; who = h; }
+          }
+        }
+        const ev = nathaniel.update(dt, nowMs / 1000, forest, arena.ringR, who ? who.pos : null);
         if (ev.shout) {
           // you say hi, then he answers with the only word he knows
-          if (player.alive) banter.sayLine(player, 'hi:nathaniel');
+          if (who) banter.sayLine(who, 'hi:nathaniel');
           window.setTimeout(() => {
             NATHANIEL_POS.copy(nathaniel.pos);
             banter.shout(NATHANIEL_POS, nathaniel.headY + 0.8, 'Nathaniel!', 0xffe066, true);
+            if (net.role === 'host') net.sendAll({ k: 'ev', e: 'shout', a: [] });
           }, 700);
         }
         // the first time he is near, point him out
@@ -1073,14 +1452,15 @@ function frame(nowMs: number, lastMs: number) {
           nathSeen = true;
           banner('THERE IS NATHANIEL!', 'Get close and say hi to him', 3000);
         }
-        if (ev.bless) {
-          player.wizard = WIZARD_TIME;
-          banner(iconImg('wizard') + ' WIZARD MODE!', 'Nathaniel blessed you. You cannot be hurt!', 3200);
-          sfx.win();
-          feedLine('<b>Nathaniel</b> gave you Wizard Mode');
+        if (ev.bless && who) {
+          const blessed = who;
+          blessed.wizard = WIZARD_TIME;
+          forHuman(blessed, () => { banner(iconImg('wizard') + ' WIZARD MODE!', 'Nathaniel blessed you. You cannot be hurt!', 3200); fx('win'); });
+          feedLine(`<b>Nathaniel</b> gave ${nameTag(blessed)} Wizard Mode`);
         }
       }
-      if (state === 'play') {
+      }
+      if (state === 'play' && !client) {
         // idle muttering from whoever is nearby, now and then
         idleT -= dt;
         if (idleT <= 0) {
@@ -1103,9 +1483,9 @@ function frame(nowMs: number, lastMs: number) {
           dropNext = arena.time + DROP_EVERY * (0.7 + Math.random() * 0.6);
           const n = potions.dropMonsters(player.pos.x, player.pos.z, 5);
           if (n) {
-            banner('WHITE MONSTER DROP!', 'cans have landed all over the island', 2200);
+            gBanner('WHITE MONSTER DROP!', 'cans have landed all over the island', 2200);
             feedLine('<b>WHITE MONSTER DROP</b>');
-            sfx.alarm();
+            gFx('alarm');
           }
         }
       }
@@ -1114,8 +1494,11 @@ function frame(nowMs: number, lastMs: number) {
       soundScape();
 
       // end of the match / the player's own card
-      if (state === 'play') gulag.update(dt, arena.time);
-      if (state === 'play' && aliveTeams() <= 1 && !gulag.busy()) endMatch();
+      if (state === 'play' && !client) gulag.update(dt, arena.time);
+      if (state === 'play' && !client && aliveTeams() <= 1 && !gulag.busy()) {
+        endMatch();
+        if (net.role === 'host') net.sendAll({ k: 'ev', e: 'end', a: [] });
+      }
       if (!player.alive && overTimer > 0) {
         overTimer -= dt;
         if (overTimer <= 0 && state === 'play') showEliminated();
@@ -1240,6 +1623,7 @@ function frame(nowMs: number, lastMs: number) {
   trip.update(t, camera.position, beat);
   trip.render(scene, camera, t, psy * 1.3, beat, 0);
   updateFlare(dt, t);
+  netTick(dt);
 }
 
 // --- the frame-time governor: keep it smooth on whatever this device is -----------------------------------
@@ -1289,4 +1673,4 @@ function loop(now: number) {
 requestAnimationFrame((t) => { last = t; lastDrawn = t; loop(t); });
 
 // a little handle for testing
-(window as unknown as { pg: unknown }).pg = { gulag, guard, player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, quality, get pixelRatio() { return pixelRatio; }, mod: (m: Mod) => { startMode(m); lastMod = m; modNext = arena.time + 600; modUntil = modNext; }, get state() { return state; } };
+(window as unknown as { pg: unknown }).pg = { net, applySnap, gulag, guard, player, bots, arena, startMatch, frame, pause, banter, nathaniel, bugs, sfx, quality, get pixelRatio() { return pixelRatio; }, mod: (m: Mod) => { startMode(m); lastMod = m; modNext = arena.time + 600; modUntil = modNext; }, get state() { return state; } };

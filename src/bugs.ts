@@ -41,6 +41,9 @@ interface Bug {
   avoidT: number;
   avoidDir: number;
   farted: boolean;
+  /** Multiplayer client: where the host says this bug is. */
+  tx?: number;
+  tz?: number;
 }
 
 interface Bonus {
@@ -251,8 +254,7 @@ export class Bugs {
     p.mat.color.setHSL(0.22 + Math.random() * 0.1, 0.9, 0.5);
   }
 
-  private spawnBonus(x: number, z: number) {
-    const kind = KINDS[Math.floor(Math.random() * KINDS.length)];
+  spawnBonus(x: number, z: number, kind: BonusKind = KINDS[Math.floor(Math.random() * KINDS.length)], life = BONUS_LIFE) {
     const color = BONUS_INFO[kind].color;
     const group = new THREE.Group();
     const mat = new THREE.MeshBasicMaterial({ color });
@@ -269,7 +271,84 @@ export class Bugs {
     group.add(gem, ring, beam, icon);
     group.position.set(x, heightAt(x, z), z);
     this.scene.add(group);
-    this.bonuses.push({ x, z, kind, life: BONUS_LIFE, group, gem, mat });
+    this.bonuses.push({ x, z, kind, life, group, gem, mat });
+  }
+
+  /** Everything a client needs to draw the bugs and the bonuses: [x, z, yaw, 0 walking / 1 farting / 2 farted] and [x, z, kind, life]. */
+  getState(): { b: number[][]; o: number[][] } {
+    const r = (v: number) => Math.round(v * 100) / 100;
+    return {
+      b: this.bugs.map((b) => [r(b.pos.x), r(b.pos.z), r(b.yaw), b.farting > 0 ? (b.farted ? 2 : 1) : 0]),
+      o: this.bonuses.map((o) => [r(o.x), r(o.z), KINDS.indexOf(o.kind), Math.round(o.life * 10) / 10]),
+    };
+  }
+
+  applyState(s: { b: number[][]; o: number[][] }) {
+    s.b.forEach((a, i) => {
+      const b = this.bugs[i];
+      if (!b) return;
+      b.tx = a[0];
+      b.tz = a[1];
+      b.yaw = a[2];
+      if (a[3] === 2 && !b.farted) {
+        b.farted = true;
+        const tx = b.pos.x + Math.sin(b.yaw) * -0.8;
+        const tz = b.pos.z + Math.cos(b.yaw) * -0.8;
+        for (let k = 0; k < 9; k++) this.puff(tx, heightAt(tx, tz) + 0.7, tz);
+        this.onFart?.(tx, tz);
+      }
+      if (a[3] === 0) b.farted = false;
+      b.farting = a[3] > 0 ? 1 : 0;
+    });
+    // bonuses: keep the ones still lying about, drop the rest, add the new
+    const key = (x: number, z: number) => `${Math.round(x)},${Math.round(z)}`;
+    const wanted = new Map(s.o.map((a) => [key(a[0], a[1]), a]));
+    for (let i = this.bonuses.length - 1; i >= 0; i--) {
+      const bo = this.bonuses[i];
+      const a = wanted.get(key(bo.x, bo.z));
+      if (!a) { this.scene.remove(bo.group); this.bonuses.splice(i, 1); } else { bo.life = a[3]; wanted.delete(key(bo.x, bo.z)); }
+    }
+    for (const a of wanted.values()) this.spawnBonus(a[0], a[1], KINDS[a[2]] ?? 'speed', a[3]);
+  }
+
+  /** Multiplayer client: the animation of update(), without any of the rules. */
+  clientTick(dt: number, t: number) {
+    for (const b of this.bugs) {
+      if (b.tx !== undefined) {
+        const moved = Math.hypot(b.tx - b.pos.x, (b.tz ?? 0) - b.pos.z);
+        const k = moved > 6 ? 1 : Math.min(1, dt * 10);
+        b.pos.x += (b.tx - b.pos.x) * k;
+        b.pos.z += ((b.tz ?? 0) - b.pos.z) * k;
+        if (moved > 0.02) b.walk += dt * 12;
+      }
+      const moving = b.farting <= 0;
+      b.root.position.x = b.pos.x + (b.farting > 0 ? Math.sin(t * 60) * 0.04 : 0);
+      b.root.position.z = b.pos.z;
+      b.root.position.y = heightAt(b.pos.x, b.pos.z);
+      b.root.rotation.y = b.yaw + Math.PI;
+      b.tail.position.y = b.farting > 0 ? 0.75 + Math.sin(t * 40) * 0.05 : 0.5;
+      b.tail.rotation.x = b.farting > 0 ? -0.5 : 0;
+      b.legL.rotation.y = moving ? Math.sin(b.walk) * 0.35 : 0;
+      b.legR.rotation.y = moving ? -Math.sin(b.walk) * 0.35 : 0;
+    }
+    for (const p of this.puffs) {
+      if (p.life <= 0) continue;
+      p.life -= dt;
+      if (p.life <= 0) { p.mesh.visible = false; continue; }
+      const f = 1 - p.life / p.max;
+      p.mesh.position.addScaledVector(p.vel, dt);
+      p.mesh.scale.setScalar(0.5 + f * 2.4);
+      p.mesh.rotation.x += dt * 2;
+      p.mesh.rotation.y += dt * 3;
+      p.mat.opacity = 0.55 * (1 - f);
+    }
+    for (const bo of this.bonuses) {
+      bo.life -= dt;
+      bo.gem.rotation.y = t * 3;
+      bo.gem.rotation.x = 0.6;
+      bo.gem.position.y = 1.5 + Math.sin(t * 3 + bo.x) * 0.2;
+      bo.group.visible = bo.life > 3 || Math.floor(bo.life * 6) % 2 === 0;
+    }
   }
 
   update(dt: number, t: number, ringR: number, gnomes: Gnome[], active: boolean, onPick: (g: Gnome, kind: BonusKind) => void) {

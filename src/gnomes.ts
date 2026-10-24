@@ -142,6 +142,18 @@ export class Gnome {
   /** Which team this gnome is on. Soak somebody and they join yours (up to five). */
   team = 0;
   teamHex = 0xffffff;
+  /** Multiplayer, host side: a human somewhere else drives this gnome (position and aim come from the network). */
+  remote = false;
+  netX = 0;
+  netY = 0;
+  netZ = 0;
+  netYaw = 0;
+  netPitch = 0;
+  netPee = false;
+  /** Goes up every time the host (re)places this gnome, so a client knows when to take the host's position. */
+  spawnCount = 0;
+  /** Multiplayer, client side: no rules run here; the host sends the truth and this just draws it. */
+  static netClient = false;
   /** 0 on the island, 1 waiting for the gulag, 2 fighting in it. */
   gulag: 0 | 1 | 2 = 0;
   gulagUsed = false;
@@ -205,7 +217,7 @@ export class Gnome {
   freeT = 0;
   /** White Monster: seconds of an endless bladder and a double stream. */
   energyT = 0;
-  private vy = 0;
+  vy = 0;
   /** A moment of grace after appearing. */
   private landShield = 0;
   /** Height of the ground under the feet, and how deep the water is there. */
@@ -236,7 +248,7 @@ export class Gnome {
   private legL: THREE.Group;
   private legR: THREE.Group;
   private mat: THREE.MeshLambertMaterial;
-  private wet = 0;
+  wet = 0;
   walkPhase = Math.random() * 6;
   private deathT = 0;
   private lastHitBy: Gnome | null = null;
@@ -270,9 +282,9 @@ export class Gnome {
 
   constructor(
     scene: THREE.Scene,
-    readonly name: string,
+    public name: string,
     readonly color: number,
-    readonly isPlayer: boolean,
+    public isPlayer: boolean,
     shirt = 0,
   ) {
     const cos = randomCostume();
@@ -307,6 +319,10 @@ export class Gnome {
   }
 
   spawn(at: THREE.Vector3) {
+    this.spawnCount++;
+    this.netX = at.x;
+    this.netY = at.y;
+    this.netZ = at.z;
     this.pos.copy(at);
     this.vel.set(0, 0, 0);
     this.hp = MAX_HP;
@@ -346,6 +362,7 @@ export class Gnome {
 
   /** A droplet landed on this gnome. `mask` is the stream's potion mix (0 = plain pee). */
   hit(mask: number, mul: number, from: Gnome, time: number) {
+    if (Gnome.netClient) return;
     if (Gnome.allies(from, this)) return; // no friendly fire
     if (!this.alive || this.wizard > 0 || this.landShield > 0) return;
     this.sinceHurt = 0;
@@ -382,6 +399,7 @@ export class Gnome {
 
   /** Napalm: set this gnome alight (from somebody else's fire). */
   ignite(from: Gnome | null) {
+    if (Gnome.netClient) return;
     if (!this.alive || this.wizard > 0) return;
     if (from && Gnome.allies(from, this)) return;
     if (this.burn <= 0) Gnome.onSay?.(this, 'burn');
@@ -391,6 +409,7 @@ export class Gnome {
 
   /** Burning and acid: quiet damage over time. */
   private dot(amount: number, from: Gnome | null, time: number) {
+    if (Gnome.netClient) return;
     if (this.wizard > 0) return;
     this.hp -= amount;
     this.sinceHurt = 0;
@@ -400,6 +419,7 @@ export class Gnome {
 
   /** The mist: damage that is credited to whoever last wet you, if that was recent. */
   mist(amount: number, time: number) {
+    if (Gnome.netClient) return;
     if (!this.alive || this.wizard > 0) return;
     this.hp -= amount;
     this.sinceHurt = 0;
@@ -634,6 +654,7 @@ export class Gnome {
   // --- per-frame update ----------------------------------------------------------------------------
 
   update(dt: number, A: Arena) {
+    if (Gnome.netClient && !this.isPlayer) { this.clientTick(dt, A); return; }
     if (!this.alive) {
       this.deathT += dt;
       const f = Math.min(1, this.deathT / 0.5);
@@ -676,10 +697,28 @@ export class Gnome {
     if (this.hp > 55) this.saidLow = false;
     if (!this.alive) return;
 
-    if (!this.isPlayer) this.thinkWithAvoid(dt, A);
+    if (this.remote) {
+      // a person is driving: take their aim and trigger finger
+      this.wantPee = this.netPee;
+      this.yaw = this.netYaw;
+      this.botPitch = this.netPitch;
+      this.hasAim = false;
+      this.moveX = this.moveZ = 0;
+    } else if (!this.isPlayer) this.thinkWithAvoid(dt, A);
 
     // movement
     const frozen = A.frozen || this.frozen > 0;
+    if (this.remote) {
+      // their position comes from their device; ease towards it
+      const kk = 1 - Math.exp(-14 * dt);
+      const nx = this.pos.x + (this.netX - this.pos.x) * kk;
+      const nz = this.pos.z + (this.netZ - this.pos.z) * kk;
+      this.vel.x = (nx - this.pos.x) / Math.max(dt, 1e-3);
+      this.vel.z = (nz - this.pos.z) / Math.max(dt, 1e-3);
+      this.pos.x = nx;
+      this.pos.z = nz;
+      this.pos.y = this.netY;
+    } else {
     const mlen = Math.hypot(this.moveX, this.moveZ);
     const scale = mlen > 1 ? 1 / mlen : 1;
     const speed = WALK * (this.peeing ? 0.72 : 1) * (this.bladder < 1 ? 0.9 : 1) * (1 - 0.6 * this.chill) * (A.mod === 'disco' ? 1.12 : A.mod === 'turbo' ? 1.5 : 1) * (this.speedT > 0 ? 1.55 : 1) * (this.wading > 1.2 ? 0.45 : this.wading > 0.25 ? 0.65 : 1);
@@ -726,13 +765,14 @@ export class Gnome {
       this.pos.x = Math.max(-lim, Math.min(lim, this.pos.x));
       this.pos.z = Math.max(-lim, Math.min(lim, this.pos.z));
     }
+    }
 
     // facing: where you aim, or the way you walk
     const speedNow = Math.hypot(this.vel.x, this.vel.z);
     let want: number | null = null;
     if (this.hasAim) want = Math.atan2(this.aimX, this.aimZ);
     else if (speedNow > 0.8) want = Math.atan2(this.vel.x, this.vel.z);
-    if (want !== null && !this.isPlayer) {
+    if (want !== null && !this.isPlayer && !this.remote) {
       const turn = 1 - Math.exp(-(this.hasAim ? 22 : 12) * dt);
       this.yaw += angleDiff(this.yaw, want) * turn;
     }
@@ -743,10 +783,7 @@ export class Gnome {
       this.bladder -= BLADDER_DRAIN * (A.mod === 'turbo' ? 0.6 : 1) * (this.freeT > 0 || this.energyT > 0 ? 0 : 1) * dt;
       const sy = this.isPlayer ? this.assistYaw ?? this.yaw : this.yaw;
       const sp = this.isPlayer ? this.assistPitch ?? this.pitch : this.botPitch;
-      const cp = Math.cos(sp);
-      const fx = Math.sin(sy);
-      const fz = Math.cos(sy);
-      A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.mask | (A.mod === 'inferno' ? 1 : 0), (A.mod === 'disco' ? 1.3 : A.mod === 'turbo' ? 1.5 : 1) * (this.energyT > 0 ? 2 : 1), (this.energyT > 0 ? 1.4 : 1));
+      this.emitStream(dt, A, sy, sp);
       if (this.bladder <= 0) { this.bladder = 0; this.locked = true; this.peeing = false; Gnome.onSay?.(this, 'dry'); }
     } else {
       this.peeing = false;
@@ -756,6 +793,84 @@ export class Gnome {
 
     this.wet = Math.max(0, this.wet - dt);
     this.walkPhase += speedNow * dt * 2.4;
+    this.syncVisual(dt);
+    this.cull(A);
+  }
+
+  /** Where the stream is aimed right now (what other devices need to draw it). */
+  get aimYawNow(): number {
+    return this.isPlayer ? this.assistYaw ?? this.yaw : this.yaw;
+  }
+  get aimPitchNow(): number {
+    return this.isPlayer ? this.assistPitch ?? this.pitch : this.botPitch;
+  }
+
+  /** Make this gnome the one you are driving (or stop it being). */
+  setLocal(on: boolean) {
+    this.isPlayer = on;
+    this.marker.visible = !on && this.alive;
+    if (on) this.root.visible = this.shadow.visible = false;
+    else if (this.alive) this.root.visible = this.shadow.visible = true;
+  }
+
+  /** Multiplayer client: the host says this gnome is out. */
+  netKill() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.deathT = 0;
+    this.peeing = this.wantPee = false;
+    this.marker.visible = this.bar.visible = false;
+  }
+
+  /** Multiplayer client: the host says this gnome is back. */
+  netRevive() {
+    this.alive = true;
+    this.deathT = 0;
+    this.vy = 0;
+    this.root.rotation.set(0, 0, 0);
+    this.root.visible = this.shadow.visible = true;
+    this.marker.visible = !this.isPlayer;
+    this.bar.visible = true;
+  }
+
+  /** Spray the stream from this gnome's mouth, along yaw `sy` and pitch `sp`. */
+  private emitStream(dt: number, A: Arena, sy: number, sp: number) {
+    const cp = Math.cos(sp);
+    const fx = Math.sin(sy);
+    const fz = Math.cos(sy);
+    A.pee.emit(this, this.pos.x + fx * 0.5, 0.75 + this.pos.y, this.pos.z + fz * 0.5, fx * cp, Math.sin(sp), fz * cp, dt, this.mask | (A.mod === 'inferno' ? 1 : 0), (A.mod === 'disco' ? 1.3 : A.mod === 'turbo' ? 1.5 : 1) * (this.energyT > 0 ? 2 : 1), (this.energyT > 0 ? 1.4 : 1));
+  }
+
+  /** Multiplayer client: somebody else's gnome. Glide to where the host says it is, and draw its stream. */
+  private clientTick(dt: number, A: Arena) {
+    if (!this.alive) {
+      this.deathT += dt;
+      const f = Math.min(1, this.deathT / 0.5);
+      this.root.rotation.x = f * 1.45;
+      this.root.position.y = -0.1 * f;
+      this.shadow.visible = this.deathT < 4;
+      this.root.visible = this.deathT < 4.5;
+      this.peeing = false;
+      this.syncVisual(dt);
+      this.cull(A);
+      return;
+    }
+    this.landShield = Math.max(0, this.landShield - dt);
+    this.wet = Math.max(0, this.wet - dt);
+    const far = Math.hypot(this.netX - this.pos.x, this.netZ - this.pos.z) > 8;
+    const kk = far ? 1 : 1 - Math.exp(-12 * dt);
+    const nx = this.pos.x + (this.netX - this.pos.x) * kk;
+    const nz = this.pos.z + (this.netZ - this.pos.z) * kk;
+    this.vel.x = (nx - this.pos.x) / Math.max(dt, 1e-3);
+    this.vel.z = (nz - this.pos.z) / Math.max(dt, 1e-3);
+    this.pos.x = nx;
+    this.pos.z = nz;
+    this.pos.y += (this.netY - this.pos.y) * (far ? 1 : Math.min(1, dt * 14));
+    this.ground = this.gulag === 2 ? GULAG.y : heightAt(this.pos.x, this.pos.z);
+    this.yaw += angleDiff(this.yaw, this.netYaw) * Math.min(1, dt * 14);
+    this.walkPhase += Math.hypot(this.vel.x, this.vel.z) * dt * 2.4;
+    this.peeing = this.netPee;
+    if (this.peeing) this.emitStream(dt, A, this.netYaw, this.netPitch);
     this.syncVisual(dt);
     this.cull(A);
   }

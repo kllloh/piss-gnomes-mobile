@@ -150,10 +150,21 @@ export class Banter {
   private chatterTimer = 0;
   voices = true;
 
-  constructor(private layer: HTMLElement, private chatter: HTMLElement, private player: Gnome) {}
+  /** Multiplayer: the host hears every line first; this is told about each, to pass on. */
+  onSpeak: ((g: Gnome, text: string, loud: boolean) => void) | null = null;
+  /** Multiplayer client: lines come from the host, so do not make any up. */
+  silent = false;
+
+  constructor(private layer: HTMLElement, private chatter: HTMLElement, public player: Gnome) {}
+
+  /** Show a line the host sent. */
+  showText(g: Gnome, text: string, loud: boolean) {
+    this.speak(g, text, loud, false);
+  }
 
   /** A gnome says something, if it has not just spoken. `force` skips the per-gnome pause (deaths, kills). */
   say(g: Gnome, what: Say, mod: Mod | null, force = false) {
+    if (this.silent) return;
     const gap = this.now - (this.last.get(g.id) ?? -9);
     if (!force && gap < 3.2) return;
     if (!force && this.now - this.lastAny < 0.35) return;
@@ -166,11 +177,13 @@ export class Banter {
 
   /** Say a particular line (potion pickups and so on). */
   sayLine(g: Gnome, key: string) {
+    if (this.silent) return;
     const pool = LINES[key];
     if (pool) this.speak(g, pool[Math.floor(Math.random() * pool.length)], true);
   }
 
-  private speak(g: Gnome, text: string, loud: boolean) {
+  private speak(g: Gnome, text: string, loud: boolean, echo = true) {
+    if (echo) this.onSpeak?.(g, text, loud);
     this.last.set(g.id, this.now);
     this.lastAny = this.now;
     if (g.isPlayer) {

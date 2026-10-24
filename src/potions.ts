@@ -124,6 +124,49 @@ export class Potions {
     return near.length + far.length;
   }
 
+  /** Where every pickup lies, [x, z, x, z, ...] (the host decides; clients copy). */
+  layout(): number[] {
+    return this.items.flatMap((it) => [Math.round(it.x * 100) / 100, Math.round(it.z * 100) / 100]);
+  }
+
+  setLayout(l: number[]) {
+    this.items.forEach((it, i) => {
+      if (l[i * 2] === undefined) return;
+      it.x = l[i * 2];
+      it.z = l[i * 2 + 1];
+      it.gy = heightAt(it.x, it.z);
+      it.group.position.set(it.x, it.gy, it.z);
+    });
+  }
+
+  /** One character per pickup: 0 gone, else its kind. */
+  getState(): string {
+    return this.items.map((it) => (it.alive ? { chili: 'c', ice: 'i', acid: 'a', energy: 'e', normal: 'c' }[it.kind] : '0')).join('');
+  }
+
+  setState(s: string) {
+    const kinds: Record<string, PickupKind> = { c: 'chili', i: 'ice', a: 'acid', e: 'energy' };
+    this.items.forEach((it, i) => {
+      const ch = s[i];
+      if (ch === undefined) return;
+      if (ch === '0') { it.alive = false; it.group.visible = false; return; }
+      const k = kinds[ch];
+      if (k && k !== it.kind) this.setKind(it, k);
+      it.alive = true;
+      it.group.visible = true;
+    });
+  }
+
+  /** Bob and spin (the part of update that is only for show; clients run just this). */
+  animate(t: number) {
+    for (const it of this.items) {
+      if (!it.alive) continue;
+      it.bottle.rotation.y = t * 1.6;
+      it.icon.position.y = 3.5 + Math.sin(t * 3 + it.x) * 0.2;
+      it.group.position.y = it.gy + Math.sin(t * 2 + it.x) * 0.12;
+    }
+  }
+
   reset() {
     for (const it of this.items) { it.alive = true; it.wait = 0; it.group.visible = true; this.setKind(it, KINDS[this.items.indexOf(it) % KINDS.length]); }
   }

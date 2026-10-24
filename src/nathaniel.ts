@@ -240,6 +240,30 @@ export class Nathaniel {
       }
     }
 
+    this.animate(dt, t, speed);
+    return out;
+  }
+
+  /** [x, z, yaw, blessing?] for clients. */
+  netState(): number[] {
+    return [Math.round(this.pos.x * 100) / 100, Math.round(this.pos.z * 100) / 100, Math.round(this.yaw * 100) / 100, this.pause > 0 ? 1 : 0];
+  }
+
+  /** Multiplayer client: glide to where the host says he is. */
+  applyNet(dt: number, t: number, s: number[]) {
+    const far = Math.hypot(s[0] - this.pos.x, s[1] - this.pos.z) > 8;
+    const k = far ? 1 : Math.min(1, dt * 10);
+    const nx = this.pos.x + (s[0] - this.pos.x) * k;
+    const nz = this.pos.z + (s[1] - this.pos.z) * k;
+    const speed = Math.hypot(nx - this.pos.x, nz - this.pos.z) / Math.max(dt, 1e-3) > 0.5 ? 2.4 : 0;
+    this.pos.x = nx;
+    this.pos.z = nz;
+    this.yaw = s[2];
+    this.pause = s[3] > 0 ? 1 : 0;
+    this.animate(dt, t, speed);
+  }
+
+  private animate(dt: number, t: number, speed: number) {
     // animation: a lanky, slightly clumsy lope
     if (speed > 0) this.walk += dt * 3.2;
     const sw = speed > 0 ? Math.sin(this.walk) * 0.55 : 0;
@@ -254,7 +278,6 @@ export class Nathaniel {
     this.root.position.set(this.pos.x, gy + Math.abs(Math.sin(this.walk)) * 0.12, this.pos.z);
     this.root.rotation.y = this.yaw + Math.PI;
     this.marker.position.set(this.pos.x, gy + 9.2 + Math.sin(t * 3) * 0.2, this.pos.z);
-    return out;
   }
 
   show(on: boolean) {

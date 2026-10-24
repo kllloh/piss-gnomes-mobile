@@ -122,3 +122,10 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **Ice:** a polar night with auroras. Snowy pines, glowing ice crystals, a frozen lake and river that are **slippery** to walk on, and twelve places: Pee-cicle Peak, Frozen Lake Wee-ter (a rink with goals), Igloo Village, Snowman Square, Yellow Snow Lodge, Ice Wee Castle, Slush Pond, Brr-muda Cave, Penguin Point, Glacier Gulch, Blizzard Bay (lighthouse) and the Frozen Fountain.
 - **Desert:** a dusky orange sky, rolling dunes, saguaro cacti, a red-rock mesa plateau, an oasis with palms, a dry riverbed and twelve places: Pee-ramid, Tinkle Bazaar, Oasis Wee-sis, Cactus Gulch, Mesa Wee-sa, Bone Yard, Pump Jack Plains, Camel Camp, Scorpion Pit, Sphinx of Pee, Sandstorm Bay and Dry Wee-ver.
 - Everything else (teams, the gulag, modes, potions, White Monsters) works on every map.
+
+## Multiplayer (host-run)
+- **Friends: HOST GAME / JOIN GAME** on the start screen. The host gets a 4-letter room code (and a COPY LINK button: `?join=CODE`); friends type the code or open the link. Up to 8 people; bots fill the rest of the 20 slots. Everyone joins the lobby, the host presses START, picks a spawn, and the match begins (a joiner is put on the host's map automatically; late joiners are turned away).
+- **How it works:** one device (the host) runs the whole match exactly as in single player: bots, mist, pickups, bugs, Nathaniel, teams, the gulag, modes. Friends' devices run only their own movement and aiming (so controls feel instant) and draw what the host sends 15 times a second. The host judges every hit, so nothing about damage is trusted to a client. Positions are trusted (it is a game for friends).
+- **Connection:** WebRTC through the free PeerJS signalling server. Same Wi-Fi is the most reliable; across strict mobile networks it can fail to connect (there is no relay server). If the host leaves, the match ends for everybody; if a friend leaves, a bot takes over their gnome.
+- **Testing without internet:** `?net=local` uses a BroadcastChannel between two tabs of one browser.
+- Pausing is disabled in a shared match.

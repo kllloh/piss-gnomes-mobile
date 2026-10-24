@@ -72,7 +72,7 @@ export class Gulag {
   }
 
   send(g: Gnome) {
-    if (g.isPlayer) this.queue.unshift(g); // you never wait behind the bots
+    if (g.isPlayer || g.remote) this.queue.unshift(g); // people never wait behind the bots
     else this.queue.push(g);
     if (!this.fight) this.pause = Math.min(this.pause, 1.2);
   }
