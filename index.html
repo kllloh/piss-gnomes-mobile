@@ -23,7 +23,7 @@
   }
   * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; box-sizing: border-box; }
   html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; touch-action: none; background: var(--bg); font-family: var(--mono); font-weight: 700; color: var(--txt); letter-spacing: .04em; user-select: none; -webkit-user-select: none; position: fixed; inset: 0; width: 100%; }
-  canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; image-rendering: auto; }
   button { font: inherit; color: inherit; cursor: pointer; }
   #flare { display: none; }
 
@@ -250,7 +250,7 @@
 <div id="flare"><i class="fl glow"></i><i class="fl streak"></i><i class="fl ghost g1"></i><i class="fl ghost g2"></i><i class="fl ghost g3"></i><i class="fl ghost g4"></i><i class="fl ghost g5"></i></div>
 <div id="bubbles"></div>
 <div id="hud">
-  <div id="alive" class="glass">GNOMES LEFT <b id="aliveN">50</b>/50</div>
+  <div id="alive" class="glass">GNOMES LEFT <b id="aliveN">20</b>/20 &middot; TEAM <b id="teamN">1</b>/5</div>
   <div id="mist" class="glass">MIST IN 0:20</div>
   <canvas id="minimap" width="124" height="124"></canvas>
   <div id="sweep"></div>
@@ -277,7 +277,7 @@
 <div class="overlay on" id="menu">
   <h1><span>P</span><span>I</span><span>S</span><span>S</span> <span>G</span><span>N</span><span>O</span><span>M</span><span>E</span><span>S</span></h1>
   <div class="sub">Last gnome standing</div>
-  <p>Fifty gnomes. One huge neon-lit mushroom island. Pee is your only weapon, and the mist is closing in.</p>
+  <p>Twenty gnomes. One small neon-lit mushroom island. Soak a gnome and they join your team. Pee is your only weapon, and the mist is closing in.</p>
   <button class="big" id="btnPlay">PLAY</button>
   <p class="more">swipe the cards below for how to play</p>
 
@@ -288,7 +288,7 @@
       <div class="slider" id="slider">
         <section class="slide">
           <div class="card"><h3>1 &middot; THE GOAL</h3>
-            <ul><li>Be the <b>last gnome standing</b> out of 50. You choose where to spawn on the map; everybody else is spread out around the island.</li><li>Pee is your only weapon. Each hit takes health.</li><li>Health creeps back after 4 quiet seconds, but not while you are burning or melting.</li><li>A pink mist closes in: stay inside the circle on the minimap.</li></ul></div>
+            <ul><li>Be on the <b>last team standing</b>. Twenty gnomes start alone. <b>Soak a gnome and they join your team</b> (cyan on the map), up to 5 per team, and your streams pass through your teammates. Get soaked and you join <i>their</i> team instead; only the mist can eliminate you. You choose where to spawn on the map; everybody else is spread out around the island.</li><li>Pee is your only weapon. Each hit takes health.</li><li>Health creeps back after 4 quiet seconds, but not while you are burning or melting.</li><li>A pink mist closes in: stay inside the circle on the minimap.</li></ul></div>
         </section>
         <section class="slide">
           <div class="card"><h3>2 &middot; PHONE OR TABLET</h3>

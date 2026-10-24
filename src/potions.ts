@@ -6,7 +6,7 @@ import { PEE, POTION_KINDS, type PeeKind } from './pee';
 import { iconTexture } from './icons';
 import type { Gnome } from './gnomes';
 
-const COUNT = 100;
+const COUNT = 46;
 const RESPAWN = 10;
 const ENERGY_SHARE = 0.34; // about a third of all pickups are White Monsters
 const GRAB = 1.5;
@@ -84,7 +84,7 @@ export class Potions {
     const taken: { x: number; z: number }[] = [];
     for (let attempt = 0; attempt < 4000 && this.items.length < COUNT; attempt++) {
       const p = forest.randomFree(HALF - 6);
-      if (taken.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 13)) continue;
+      if (taken.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 9)) continue;
       taken.push({ x: p.x, z: p.z });
       const kind = KINDS[this.items.length % KINDS.length];
       const group = new THREE.Group();

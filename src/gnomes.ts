@@ -38,7 +38,8 @@ export interface Arena {
 }
 
 export type Mod = 'disco' | 'goth' | 'turbo' | 'upside' | 'moon' | 'slippery' | 'inferno';
-export type Say = 'spot' | 'hit' | 'kill' | 'death' | 'burn' | 'freeze' | 'melt' | 'lowhp' | 'dry' | 'idle' | 'taunt';
+export const TEAM_MAX = 5;
+export type Say = 'join' | 'spot' | 'hit' | 'kill' | 'death' | 'burn' | 'freeze' | 'melt' | 'lowhp' | 'dry' | 'idle' | 'taunt';
 
 // --- cheap models: the gnome baked into three meshes (two legs and a body) ------------------------
 
@@ -136,6 +137,23 @@ export class Gnome {
   /** Somebody got hit (for sound and haptics). */
   static onHurt: ((g: Gnome) => void) | null = null;
   /** Something worth saying out loud happened to this gnome. */
+  /** Which team this gnome is on. Soak somebody and they join yours (up to five). */
+  team = 0;
+  teamHex = 0xffffff;
+  static roster: Gnome[] = [];
+  static onJoin: ((g: Gnome, to: Gnome) => void) | null = null;
+  static teamSize(team: number): number {
+    let n = 0;
+    for (const g of Gnome.roster) if (g.alive && g.team === team) n++;
+    return n;
+  }
+  setTeam(team: number, hex: number) {
+    this.team = team;
+    this.teamHex = hex;
+    (this.marker.material as THREE.MeshBasicMaterial).color.setHex(hex);
+    (this.barFill.material as THREE.MeshBasicMaterial).color.setHex(hex);
+  }
+
   static onSay: ((g: Gnome, what: Say) => void) | null = null;
 
   readonly id = nextId++;
@@ -314,6 +332,7 @@ export class Gnome {
 
   /** A droplet landed on this gnome. `mask` is the stream's potion mix (0 = plain pee). */
   hit(mask: number, mul: number, from: Gnome, time: number) {
+    if (from !== this && from.team === this.team) return; // no friendly fire
     if (!this.alive || this.wizard > 0 || this.landShield > 0) return;
     this.sinceHurt = 0;
     this.wet = 0.35;
@@ -350,6 +369,7 @@ export class Gnome {
   /** Napalm: set this gnome alight (from somebody else's fire). */
   ignite(from: Gnome | null) {
     if (!this.alive || this.wizard > 0) return;
+    if (from && from !== this && from.team === this.team) return;
     if (this.burn <= 0) Gnome.onSay?.(this, 'burn');
     this.burn = Math.max(this.burn, 3);
     this.burnBy = from;
@@ -370,10 +390,27 @@ export class Gnome {
     this.hp -= amount;
     this.sinceHurt = 0;
     this.wet = 0.2;
-    if (this.hp <= 0) this.die(time - this.lastHitAt < 6 ? this.lastHitBy : null, time);
+    if (this.hp <= 0) this.die(time - this.lastHitAt < 6 ? this.lastHitBy : null, time, true);
   }
 
-  private die(killer: Gnome | null, time: number) {
+  /** Soaked, but not out: you join the team of whoever got you (if it has room). */
+  private join(killer: Gnome) {
+    killer.kills++;
+    Gnome.onSay?.(killer, 'kill');
+    this.hp = MAX_HP * 0.6;
+    this.burn = this.acid = this.chill = this.frozen = this.dizzy = 0;
+    this.sinceHurt = 0;
+    this.landShield = 2.5;
+    this.target = null;
+    this.lastHitBy = null;
+    this.peeing = this.wantPee = false;
+    this.setTeam(killer.team, killer.teamHex);
+    Gnome.onSay?.(this, 'join');
+    Gnome.onJoin?.(this, killer);
+  }
+
+  private die(killer: Gnome | null, time: number, mist = false) {
+    if (!mist && killer && killer !== this && killer.alive && killer.team !== this.team && Gnome.teamSize(killer.team) < TEAM_MAX) { this.join(killer); return; }
     this.hp = 0;
     this.alive = false;
     this.diedAt = time;
@@ -403,7 +440,7 @@ export class Gnome {
     let bd = 22;
     const cur = this.target && this.target.alive ? this.target : null;
     for (const g of A.gnomes) {
-      if (g === this || !g.alive) continue;
+      if (g === this || !g.alive || g.team === this.team) continue;
       const d = Math.hypot(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
       if (d < bd - (g === cur ? 4 : 0)) { bd = d; best = g; }
     }
@@ -482,11 +519,13 @@ export class Gnome {
       const bonus = A.bugs.nearestBonus(this.pos.x, this.pos.z, 22);
       const pot = this.mask !== 7 ? A.potions.nearest(this.pos.x, this.pos.z, 26, this.mask | (this.energyT > 0 ? 8 : 0)) : null;
       let goal: { x: number; z: number } | null = bonus ?? pot;
+      const boss = A.gnomes[0];
+      if (!goal && boss.alive && boss.team === this.team && !this.isPlayer && Math.hypot(boss.pos.x - this.pos.x, boss.pos.z - this.pos.z) > 12) goal = boss.pos; // stick with your team
       if (!goal && this.hunting) {
-        // with fifty gnomes about, go and find one
+        // go and find somebody to soak
         let bd = Infinity;
         for (const g of A.gnomes) {
-          if (g === this || !g.alive) continue;
+          if (g === this || !g.alive || g.team === this.team) continue;
           const d = Math.hypot(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
           if (d < bd) { bd = d; goal = g.pos; }
         }

@@ -3,8 +3,8 @@
  * terrain mesh, the colliders, the minimap, the bots and the droplets all agree about where the ground and the water are.
  */
 
-/** How much bigger the island is than the first version of it. */
-export const K = 1.5;
+/** How big the island is, relative to the first version of it. */
+export const K = 1;
 export const SEA = -0.35;
 /** Beyond this much water you cannot wade any deeper. */
 export const DEEP = 1.35;

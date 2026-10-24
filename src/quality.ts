@@ -61,9 +61,9 @@ export function detectQuality(): Quality {
   if (forced === 'low' || forced === 'mid' || forced === 'high') tier = forced;
 
   const q: Record<Tier, Omit<Quality, 'tier' | 'why'>> = {
-    high: { ratioMax: Math.min(dpr, 2), ratioMin: 0.8, post: true, samples: 0, flare: false, spores: 240, drawDist: 115 },
-    mid: { ratioMax: Math.min(dpr, 1.5), ratioMin: 0.7, post: true, samples: 0, flare: false, spores: 140, drawDist: 95 },
-    low: { ratioMax: Math.min(dpr, 1), ratioMin: 0.6, post: false, samples: 0, flare: false, spores: 60, drawDist: 75 },
+    high: { ratioMax: Math.min(dpr, 2), ratioMin: 0.8, post: true, samples: 4, flare: false, spores: 240, drawDist: 115 },
+    mid: { ratioMax: Math.min(dpr, 2), ratioMin: 0.7, post: true, samples: 2, flare: false, spores: 140, drawDist: 95 },
+    low: { ratioMax: Math.min(dpr, 1.25), ratioMin: 0.6, post: false, samples: 0, flare: false, spores: 60, drawDist: 75 },
   };
   return { tier, ...q[tier], why: `${gpu || 'unknown GPU'}, ${cores} cores, ${mem}GB, dpr ${dpr}: ${notes.join(', ') || 'average'}` };
 }

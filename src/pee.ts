@@ -219,7 +219,7 @@ export class PeeSystem {
           if (!list) continue;
           for (let k = 0; k < list.length; k++) {
             const t = list[k];
-            if (!t.alive || t === shooter) continue;
+            if (!t.alive || t === shooter || t.team === shooter.team) continue; // streams pass through your team
             const ddx = t.pos.x - x;
             const ddz = t.pos.z - z;
             if (ddx * ddx + ddz * ddz < 0.45 && y > t.pos.y - 0.2 && y < t.pos.y + 2.4) { hit = t; break search; }

@@ -115,8 +115,7 @@ void main() {
     }
     col = mix(col, mc, modeAmt);
   }
-  col = floor(col * 24.0 + 0.5) / 24.0; // lightly banded, like a low-colour skybox
-  gl_FragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(col, 1.0);
 }`;
 
 const POST_VERT = `
@@ -174,10 +173,10 @@ void main() {
   vec2 c = uv - 0.5;
   float r = length(c);
   // wobbling, breathing lens
-  uv += amp * 0.003 * vec2(sin(uv.y * 12.0 + time * 0.9), cos(uv.x * 10.0 + time * 0.7));
+  uv += amp * 0.0015 * vec2(sin(uv.y * 12.0 + time * 0.9), cos(uv.x * 10.0 + time * 0.7));
   uv += c * (amp * 0.025 * sin(time * 0.5)) * (0.3 + r * 2.0);
   // colour fringes
-  float ca = (amp + cyber) * 0.0016 * (0.4 + r * 3.0);
+  float ca = amp * 0.0012 * (0.4 + r * 3.0);
   vec3 col;
   col.r = texture2D(tDiffuse, uv + c * ca).r;
   col.g = texture2D(tDiffuse, uv).g;
@@ -231,9 +230,6 @@ void main() {
   }
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
-  // PlayStation-style colour steps with a fine ordered dither, in the low-res pixels
-  float dither = fract(52.9829189 * fract(dot(floor(gl_FragCoord.xy), vec2(0.06711056, 0.00583715))));
-  gl_FragColor.rgb = floor(gl_FragColor.rgb * 63.0 + dither) / 63.0;
 }`;
 
 /** The psychedelic layer: swirling sky, drifting spores, and a warping colour-shifting post effect. */

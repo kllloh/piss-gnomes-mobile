@@ -105,3 +105,8 @@ Built with TypeScript, Vite and Three.js. Add `?god` to the URL to be invulnerab
 - **No flicker:** removed the CSS scan-line sheet, the post-pass scan-lines, the beat strobes, the star twinkle and time-stepped sky glitter, the wobble in some modes, the glitch animation on titles, and the PlayStation vertex crawl (the snap grid is much finer now).
 - **Clearer picture:** more lines on stronger devices (640 high / 540 mid / 450 low, was 450), lighter fog, finer colour steps, less glow, less chromatic fringing and a lighter vignette.
 - **Start screen fits any phone:** the title, PLAY and how-to cards always fit one screen (cards scroll inside their box), in portrait and landscape, with safe-area padding and dynamic viewport height.
+
+## Teams update
+- **Smaller map, 20 gnomes:** the island is back to its original size (about two-thirds of the width it had), with object counts scaled to match; 19 bots plus you.
+- **Soak a gnome and they join your team**, up to 5 per team. Teammates show cyan on the minimap and in the world, your streams (and fire) pass through them, bots never target them, and your bot teammates stick near you. Get soaked yourself and you join your attacker's team instead (a full team of five eliminates you). Only the mist eliminates for good. The last team standing wins.
+- **Super crisp:** the picture now renders at the screen's full native resolution (up to 2x), with 4x (high) or 2x (mid) anti-aliasing, no colour dither, no sky banding, no vertex snapping and less lens wobble. The frame-time governor still backs off on slow devices.

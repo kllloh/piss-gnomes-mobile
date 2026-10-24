@@ -14,7 +14,7 @@ export const BONUS_INFO: Record<BonusKind, { name: string; blurb: string; color:
 };
 const KINDS: BonusKind[] = ['speed', 'health', 'bounce', 'gulp'];
 
-const BUG_COUNT = 48;
+const BUG_COUNT = 22;
 const BONUS_LIFE = 16;
 const GRAB = 1.5;
 const PUFFS = 36;

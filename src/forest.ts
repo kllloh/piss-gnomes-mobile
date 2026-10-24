@@ -3,7 +3,9 @@ import { SoftBox, lit, makePaintTexture } from './organic';
 import { heightAt, SEA, landNear, groundColor, POIS, ACID_POOLS, K } from './map';
 
 /** Half the side of the (small, square) forest. */
-export const HALF = 135;
+export const HALF = 90;
+/** Fixed object counts were tuned for the 135-wide island; scale them to this one. */
+const AREA = (HALF / 135) ** 2;
 
 interface Solid {
   /** circle: x,z,r. rect: x0,z0,x1,z1 */
@@ -180,7 +182,7 @@ export class Forest {
     }
 
     // flowers and soft patches on the grass
-    const patchCount = 290;
+    const patchCount = Math.round(290 * AREA);
     const patches = instanced(new THREE.CylinderGeometry(0.5, 0.5, 0.03, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }), patchCount);
     for (let i = 0; i < patchCount; i++) {
       let x = 0, z = 0;
@@ -204,7 +206,7 @@ export class Forest {
       });
       placed.push({ x, z });
     };
-    for (let attempt = 0; attempt < 40000 && shrooms.length < 800; attempt++) {
+    for (let attempt = 0; attempt < 40000 && shrooms.length < Math.round(800 * AREA); attempt++) {
       const x = between(-HALF + 3, HALF - 3);
       const z = between(-HALF + 3, HALF - 3);
       if (!dry(x, z) || !clear(x, z) || !spaced(x, z, 4.2)) continue;
@@ -212,7 +214,7 @@ export class Forest {
     }
     // Wee Woods is thick with them
     const wood = POIS.find((p) => p.kind === 'woods')!;
-    for (let attempt = 0; attempt < 6000 && shrooms.length < 960; attempt++) {
+    for (let attempt = 0; attempt < 6000 && shrooms.length < Math.round(960 * AREA); attempt++) {
       const a = rnd() * Math.PI * 2;
       const r = Math.sqrt(rnd()) * wood.r;
       const x = wood.x + Math.cos(a) * r;
@@ -247,7 +249,7 @@ export class Forest {
 
     // --- rocks and fallen logs: low cover --------------------------------------------------
     const rockList: { x: number; z: number; w: number; h: number }[] = [];
-    for (let attempt = 0; attempt < 6000 && rockList.length < 220; attempt++) {
+    for (let attempt = 0; attempt < 6000 && rockList.length < Math.round(220 * AREA); attempt++) {
       const x = between(-HALF + 4, HALF - 4);
       const z = between(-HALF + 4, HALF - 4);
       if (heightAt(x, z) < 0.3 || !clear(x, z, 0.5) || !spaced(x, z, 3)) continue;
@@ -263,7 +265,7 @@ export class Forest {
     this.group.add(rocks);
 
     const logList: { x: number; z: number; w: number; d: number }[] = [];
-    for (let attempt = 0; attempt < 6000 && logList.length < 110; attempt++) {
+    for (let attempt = 0; attempt < 6000 && logList.length < Math.round(110 * AREA); attempt++) {
       const x = between(-HALF + 6, HALF - 6);
       const z = between(-HALF + 6, HALF - 6);
       if (!dry(x, z, 0.8) || !clear(x, z, 1) || !spaced(x, z, 4.2)) continue;
@@ -280,7 +282,7 @@ export class Forest {
     this.group.add(logs);
 
     // --- glowing little mushrooms (decor) --------------------------------------------------
-    const smallN = 1000;
+    const smallN = Math.round(1000 * AREA);
     const stems = instanced(new THREE.CylinderGeometry(0.5, 0.5, 1, 6), lit({ color: 0x6a6458 }), smallN);
     const caps = instanced(new THREE.ConeGeometry(0.62, 1, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), smallN);
     for (let i = 0; i < smallN; i++) {
@@ -304,7 +306,7 @@ export class Forest {
     this.buildPlaces(between);
 
     // --- fireflies ------------------------------------------------------------------------------
-    const flyN = 350;
+    const flyN = Math.round(350 * AREA);
     this.flies = instanced(new SoftBox(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xc8d870 }), flyN);
     for (let i = 0; i < flyN; i++) {
       const x = between(-HALF, HALF);

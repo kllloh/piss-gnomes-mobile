@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Forest, HALF } from './forest';
-import { Gnome, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
+import { Gnome, TEAM_MAX, MAX_HP, EYE, aimPitch, type Arena, type Mod } from './gnomes';
 import { Potions } from './potions';
 import { iconImg, type IconKind } from './icons';
 import { Banter, modTagline } from './talk';
@@ -13,10 +13,10 @@ import { PeeSystem, RANGE, PEE, MIX, KIND_BIT } from './pee';
 import { Input } from './input';
 import { Sfx } from './audio';
 
-const TOTAL = 50; // gnomes in a match
-const MIST_WAIT = 35; // seconds before the mist starts to close
-const MIST_TIME = 270; // seconds it takes to close
-const MIST_START = 129; // the island is about 108 across from its middle
+const TOTAL = 20; // gnomes in a match
+const MIST_WAIT = 30; // seconds before the mist starts to close
+const MIST_TIME = 200; // seconds it takes to close
+const MIST_START = 86; // the island is about 72 across from its middle
 const MIST_END = 8;
 const COUNTDOWN = 3.4;
 const MODE_EVERY = 20; // a new silly mode every 20 seconds
@@ -28,21 +28,14 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 // --- renderer, scene, camera -----------------------------------------------------------------------
 
 const canvas = $<HTMLCanvasElement>('game');
-// PlayStation-style vertex snapping: positions jump to a coarse screen grid, on a grid fine enough that edges stay steady
-THREE.ShaderChunk.project_vertex = THREE.ShaderChunk.project_vertex.replace(
-  'gl_Position = projectionMatrix * mvPosition;',
-  'gl_Position = projectionMatrix * mvPosition;\n\tgl_Position.xy = floor(gl_Position.xy / gl_Position.w * vec2(720.0, 540.0) + 0.5) / vec2(720.0, 540.0) * gl_Position.w;',
-);
-
 // How hard to push this device: picked from the hardware, then adjusted while you play.
 const quality = detectQuality();
 console.info(`[piss-gnomes] quality ${quality.tier} (${quality.why})`);
 // with the post pass on, anti-aliasing happens inside it, so the canvas itself does not need MSAA
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !quality.post, powerPreference: 'high-performance' });
-// the picture is rendered small on purpose and scaled up with hard pixels, like a 1998 console; stronger devices get more lines, so it is clearer
-const RETRO_LINES = quality.tier === 'high' ? 640 : quality.tier === 'mid' ? 540 : 450;
+// super crisp: stronger devices render at the screen's full native resolution (the governor backs off only if frames get slow)
 let ratioScale = 1;
-const retroRatio = () => Math.max(0.3, Math.min(window.devicePixelRatio || 1, RETRO_LINES / window.innerHeight));
+const retroRatio = () => Math.max(0.5, Math.min(window.devicePixelRatio || 1, quality.ratioMax));
 let pixelRatio = retroRatio();
 renderer.setPixelRatio(pixelRatio);
 // a lost graphics context (a phone being busy, or a tab swap) is fixed by starting again
@@ -107,6 +100,10 @@ const bots: Gnome[] = [];
 const botNames = NAMES.slice().sort(() => Math.random() - 0.5);
 for (let i = 1; i < TOTAL; i++) bots.push(new Gnome(scene, botNames[i - 1], HATS[i % HATS.length], false, i));
 const gnomes: Gnome[] = [player, ...bots];
+Gnome.roster = gnomes;
+/** Every gnome starts on a team of its own, with its own colour; you are cyan. */
+const teamHex = (i: number) => (i === 0 ? 0x19f0ff : new THREE.Color().setHSL((i * 0.61803) % 1, 0.9, 0.58).getHex());
+gnomes.forEach((g, i) => g.setTeam(i, teamHex(i)));
 
 const potions = new Potions(scene, forest);
 const bugs = new Bugs(scene, forest);
@@ -134,7 +131,7 @@ if (!coarse) document.body.classList.add('desktop');
 // --- HUD -------------------------------------------------------------------------------------------------------
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
-const nameTag = (g: Gnome) => `<span style="color:${hex(g.isPlayer ? 0xffffff : g.color)}">${g.name}</span>`;
+const nameTag = (g: Gnome) => `<span style="color:${hex(g.isPlayer ? 0xffffff : g.teamHex)}">${g.name}</span>`;
 
 function feedLine(html: string) {
   const feed = $('feed');
@@ -197,7 +194,7 @@ function drawMinimap() {
     if (!g.alive) continue;
     mapCtx.beginPath();
     mapCtx.arc(px(g.pos.x), px(g.pos.z), g.isPlayer ? 4.5 : 2.3, 0, Math.PI * 2);
-    mapCtx.fillStyle = hex(g.isPlayer ? 0xffffff : g.color);
+    mapCtx.fillStyle = hex(g.isPlayer ? 0xffffff : g.team === player.team ? 0x19f0ff : g.teamHex);
     mapCtx.fill();
     if (g.isPlayer) {
       mapCtx.strokeStyle = '#19e3ff';
@@ -229,6 +226,9 @@ const god = new URLSearchParams(location.search).has('god');
 function aliveGnomes(): Gnome[] {
   return gnomes.filter((g) => g.alive);
 }
+function aliveTeams(): number {
+  return new Set(aliveGnomes().map((g) => g.team)).size;
+}
 
 function startMatch(at?: { x: number; z: number }) {
   // you appear where you chose; the bots take the ring spawn points that are not on top of you
@@ -236,6 +236,7 @@ function startMatch(at?: { x: number; z: number }) {
   const c = landNear(at ? at.x : poi.x, at ? at.z : poi.z, 0.8);
   const spots = forest.spawns.filter((sp) => Math.hypot(sp.x - c.x, sp.z - c.z) > 14).sort(() => Math.random() - 0.5);
   while (spots.length < bots.length) spots.push(forest.randomFree(HALF - 8));
+  gnomes.forEach((g, i) => g.setTeam(i, teamHex(i)));
   player.spawn(new THREE.Vector3(c.x, heightAt(c.x, c.z), c.z));
   bots.forEach((g, i) => g.spawn(spots[i]));
   $('spawn').classList.remove('on');
@@ -278,12 +279,24 @@ function startMatch(at?: { x: number; z: number }) {
   input.release();
 }
 
+Gnome.onJoin = (g, to) => {
+  const n = Gnome.teamSize(to.team);
+  feedLine(`${nameTag(to)} soaked ${nameTag(g)}, who joined their team`);
+  if (g.isPlayer) {
+    sfx.pop();
+    banner(`YOU JOINED ${to.name.toUpperCase()}'S TEAM`, `soaked! now ${n} of ${TEAM_MAX} on the team`, 2600);
+  } else if (to.team === player.team) {
+    sfx.pop();
+    banner('NEW TEAMMATE!', `${g.name} joined your team (${n}/${TEAM_MAX})`, 1900);
+  } else sfx.popAt(g.pos);
+};
+
 Gnome.onDeath = (victim, killer) => {
-  const left = aliveGnomes().length;
+  const left = aliveTeams();
   victim.diedAt = arena.time;
   pee.puddleAt(victim.pos.x, victim.pos.z);
   feedLine(killer ? `${nameTag(killer)} drenched ${nameTag(victim)}` : `${nameTag(victim)} was swallowed by the mist`);
-  $('aliveN').textContent = String(left);
+  $('aliveN').textContent = String(aliveGnomes().length);
   if (victim.isPlayer) {
     playerPlace = left + 1;
     sfx.lose();
@@ -323,10 +336,10 @@ function endMatch() {
   arena.mod = null;
   sfx.setMood('none');
   const winner = aliveGnomes()[0] ?? null;
-  const won = !!winner && winner.isPlayer;
+  const won = !!winner && winner.team === player.team && player.alive;
   if (won) { playerPlace = 1; sfx.win(); }
-  $('overTitle').textContent = won ? 'LAST GNOME STANDING!' : playerPlace ? 'ELIMINATED' : 'DRAW';
-  $('overSub').textContent = won ? 'You peed on the whole forest and won.' : winner ? `${winner.name} is the last gnome standing.` : 'Nobody is left. The mist wins.';
+  $('overTitle').textContent = won ? 'LAST TEAM STANDING!' : playerPlace ? 'ELIMINATED' : 'DRAW';
+  $('overSub').textContent = won ? 'Your team peed on the whole forest and won.' : winner ? `${winner.name}'s team is the last one standing.` : 'Nobody is left. The mist wins.';
   $('stats').innerHTML = `Placed <b>${ordinal(playerPlace || TOTAL)}</b> of ${TOTAL}<br>Gnomes soaked: <b>${player.kills}</b><br>Time: <b>${fmt(matchTime)}</b>`;
   $('btnWatch').style.display = 'none';
   banner(won ? 'VICTORY!' : `${winner ? winner.name : 'Nobody'} wins`, '', 0);
@@ -806,7 +819,7 @@ function playerControls(dt: number) {
   let byaw = 0;
   if (state === 'play') {
     for (const g of bots) {
-      if (!g.alive || g.landShieldActive) continue;
+      if (!g.alive || g.landShieldActive || g.team === player.team) continue;
       const dx = g.pos.x - player.pos.x;
       const dz = g.pos.z - player.pos.z;
       const d = Math.hypot(dx, dz);
@@ -832,6 +845,8 @@ function playerControls(dt: number) {
 }
 
 function updateHud() {
+  $('teamN').textContent = String(Gnome.teamSize(player.team));
+  $('aliveN').textContent = String(aliveGnomes().length);
   $('hpfill').style.width = `${Math.max(0, (player.hp / MAX_HP) * 100)}%`;
   $('blfill').style.width = `${player.bladder}%`;
   $('bars').classList.toggle('locked', player.locked);
@@ -1011,7 +1026,7 @@ function frame(nowMs: number, lastMs: number) {
         // a drop of White Monsters, now and then
         if (arena.time >= dropNext) {
           dropNext = arena.time + DROP_EVERY * (0.7 + Math.random() * 0.6);
-          const n = potions.dropMonsters(player.pos.x, player.pos.z, 7);
+          const n = potions.dropMonsters(player.pos.x, player.pos.z, 5);
           if (n) {
             banner('WHITE MONSTER DROP!', 'cans have landed all over the island', 2200);
             feedLine('<b>WHITE MONSTER DROP</b>');
@@ -1024,7 +1039,7 @@ function frame(nowMs: number, lastMs: number) {
       soundScape();
 
       // end of the match / the player's own card
-      if (state === 'play' && aliveGnomes().length <= 1) endMatch();
+      if (state === 'play' && aliveTeams() <= 1) endMatch();
       if (!player.alive && overTimer > 0) {
         overTimer -= dt;
         if (overTimer <= 0 && state === 'play') showEliminated();

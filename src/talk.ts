@@ -3,6 +3,7 @@ import type { Gnome, Mod, Say } from './gnomes';
 
 /** Everything the gnomes shout. Lines under 'what:mod' are only used while that silly mode is on. */
 export const LINES: Record<string, string[]> = {
+  join: ['Fine, I will join your team!', 'Ooh, I am on your side now!', 'Soaked AND recruited!', 'Team pee! Team PEE!', 'I was going to lose anyway. Hi team!', 'New team, who dis?', 'I surrender my bladder to you!', 'Okay, you are the boss now.', 'Together we shall pee!'],
   spot: [
     'FOUND YOU, YOU DAMP LITTLE MAN!', 'Oi! Is that a gnome or a puddle?', 'I smell pee. Mostly mine.', 'Come here and be moist!',
     'Target acquired. Bladder armed.', 'You look dry. FIXING THAT.', 'My bladder has a message for you.', 'Gnome on the horizon! Hat first!',
